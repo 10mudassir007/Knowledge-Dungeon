@@ -3,3 +3,4 @@ langchain-groq==0.2.5
 langchain-community==0.3.19
 crewai==0.108.0
 streamlit==1.41.0
+scikit-learn==1.5.2
