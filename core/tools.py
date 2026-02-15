@@ -1,4 +1,5 @@
 from langchain.tools import tool
+from langchain_tavily import TavilySearch
 
 game_state = {"points": 0, "lives": 3} 
 
@@ -16,3 +17,9 @@ def decrease_lives():
     game_state["lives"] -= 1
   return game_state["lives"]
 
+
+search_tool = TavilySearch(
+    max_results=5,
+    topic="general",
+    include_images=False,
+)

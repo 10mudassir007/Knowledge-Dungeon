@@ -1,12 +1,14 @@
 from core.llm import get_llm
-from core.tools import increase_points, decrease_lives
+from core.tools import increase_points, decrease_lives,search_tool
 from langchain.agents import create_agent
+
+llm = get_llm()
 
 def generate_environment(user_interest, user_age, level):
     """Generates a dynamic environment for the quiz game, such as a themed setting or background story."""
     
     environment_agent = create_agent(
-        model=get_llm(),
+        model=llm,
         system_prompt=(
             "You are the Narrator for a quiz game.\n"
             "Write an IN-WORLD welcome message (2-3 lines) and nothing else.\n"
@@ -15,7 +17,8 @@ def generate_environment(user_interest, user_age, level):
             "Output ONLY the welcome message text."
         ),
     )
-    return environment_agent.invoke(
+
+    response = environment_agent.invoke(
         {
             "messages": (
                 "Create a 2-3 line in-world welcome message for a quiz dungeon. "
@@ -27,41 +30,60 @@ def generate_environment(user_interest, user_age, level):
             )
         }
     )["messages"][-1].content
+    if type(response) == str:
+        return response 
+    
+    return response[-1]['text']
 
 
 def generate_question(user_interest, user_age, history=[]):
     """Generates a question based on the user's interest, age, and history of previous questions."""
 
     question_agent = create_agent(
-    model=get_llm(),
+    model=llm,
     system_prompt="""
     You are a Question Generator for a quiz game.
     Include the answer too, seperate with "||"
     Output only the question text, nothing else.
-    """
+
+    Tool policy:
+    - You may use the search tool AT MOST ONCE.
+    - If you already used the search tool once, do not call any tools again; just write the best possible question.
+    - Do not mention the tool or the search process in your output.
+    """,
+    tools=[search_tool],
     )
     response = question_agent.invoke({
     "messages": f"Generate a general knowledge question about: {user_interest}\n"
                 f"The user is: {user_age} years old\n"
                 f"Previous questions: {history[-100:]}"
 }
-)
-    return response['messages'][-1].content
+)['messages'][-1].content
+    if type(response) == str:
+        return response
+
+    return response[-1]['text']
 
 
 def get_hint(question, answer, user_interest):
     """Provides a hint for the given question without revealing the answer."""
     
     hint_giver = create_agent(
-        model=get_llm(),
+        model=llm,
         system_prompt="Output only what is asked nothing else no description"
     )
-    return hint_giver.invoke({"messages":f"Give a hint according to the question:{question}\nIts correct answer is : {answer},\nUse a character according to the user interest: {user_interest} to get the hint from and the tone should be according to that character, if a character does not match the user interest, then use Gandalf"})["messages"][-1].content
+
+    response = hint_giver.invoke({"messages":f"Give a hint according to the question:{question}\nIts correct answer is : {answer},\nUse a character according to the user interest: {user_interest} to get the hint from and the tone should be according to that character, if a character does not match the user interest, then use Gandalf"})["messages"][-1].content
+
+    if type(response) == str:
+        return response
+
+    return response[-1]['text']
 
 def check_answer(question, correct_answer, user_answer):
     """Checks the user's answer against the correct one and updates points/lives accordingly."""
     answer_checker = create_agent(
-        model=get_llm(),
+        model=llm,
         tools=[increase_points, decrease_lives],
         system_prompt=(
             "You are an answer checker for a quiz game.\n"
@@ -74,7 +96,7 @@ def check_answer(question, correct_answer, user_answer):
         ),
     )
 
-    return answer_checker.invoke(
+    response = answer_checker.invoke(
         {
             "messages": (
                 f"Question: {question}\n"
@@ -84,3 +106,8 @@ def check_answer(question, correct_answer, user_answer):
             )
         }
     )["messages"][-1].content
+
+    if type(response) == str:
+        return response
+
+    return response[-1]['text']
