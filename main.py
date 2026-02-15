@@ -6,7 +6,7 @@ import json
 import os
 import uuid
 
-from agents.agent import generate_question, check_answer, get_hint, generate_environment
+from agents import generate_question, check_answer, get_hint, generate_environment
 
 # -----------------------------
 # Persistence (question history)

@@ -1,73 +1,116 @@
-# 🏰 Knowledge Dungeon 🏰
+# Knowledge Dungeon
 
-A gamified Q&A adventure built using `Streamlit`, `CrewAI`, and `LangChain` with a LLM-powered cast of agents guiding the player through trivia challenges. Players battle through levels, collect points, and survive with limited lives—all while being guided by a virtual narrator and hint system.
+An AI-powered quiz dungeon game.
 
----
+- Backend: FastAPI API that starts a session, generates dungeon flavor text, asks questions, gives hints, and checks answers.
+- Frontend: Vite + React (shadcn/ui) client in `quest-master/`.
+- Optional CLI: quick terminal version in `main-cli.py`.
 
-## 🚀 Features
+## How It Works
 
-- ✅ **Dynamic Question Generation** based on player level using LLMs.
-- 🧠 **Semantic Answer Checking** using sentence embeddings (`MiniLM`) for flexible answer matching.
-- 💡 **Hint System** for each question.
-- 📜 **Narrator Agent** for immersive storytelling.
-- 🎮 **Gamified Progression**: 10 levels, limited lives, and point tracking.
-- 💾 **Persistent Question History** to avoid repetition across sessions.
+- You start a game with an `age` and `interest`.
+- The backend uses an LLM (LangChain) to generate:
+  - a short in-world environment narration
+  - a question (returned as `question || answer` internally)
+  - a hint
+  - a correctness verdict ("Correct" / "Incorrect")
+- Game rules:
+  - `3` lives
+  - `+10` points per correct answer
+  - level up every `30` points (max level `3`)
+  - win at `90` points
 
----
+## Repo Layout
 
-## 🛠️ Tech Stack
+- `main.py` - FastAPI server (default for the web app)
+- `main-cli.py` - CLI game loop
+- `agents/agent.py` - LLM-driven environment/question/hint/check logic
+- `core/llm.py` - LLM provider selection + env var loading
+- `core/tools.py` - point/life tools + optional search tool
+- `data/history.json` - persisted question history (auto-created)
+- `quest-master/` - React frontend
 
-- **[Streamlit](https://streamlit.io/)** – UI framework.
-- **[LangChain](https://www.langchain.com/)** with **Groq** – LLM agent orchestration.
-- **[CrewAI](https://github.com/joaomdmoura/crewai)** – Agent management.
-- **[sentence-transformers](https://www.sbert.net/)** – Embedding-based answer validation.
-- **LLM Used**: `meta-llama/llama-4-maverick-17b-128e-instruct` (via `ChatGroq`).
+## Quickstart (Web App)
 
----
-
-## 🎮 How to Play
-
-1. Launch the app:
-    ```bash
-    streamlit run app.py
-    ```
-
-2. Read the narrator's introduction.
-
-3. Answer general knowledge questions.
-   - Use the **hint** if you're stuck (once per question).
-   - Be careful—wrong answers cost a life!
-
-4. Score points for each correct answer.
-   - Every 3 correct answers = level up.
-   - Reach Level 10 to win!
-
----
-
-## 📁 File Overview
-
-| File          | Purpose                              |
-|---------------|--------------------------------------|
-| `app.py`      | Main game logic                      |
-| `history.txt` | Stores asked questions (avoid repeats) |
-| `README.md`   | You are reading it 🙂                 |
-
----
-
-## 🧠 Agents Breakdown
-
-| Agent             | Role                                            |
-|-------------------|-------------------------------------------------|
-| `NarratorAgent`   | Welcomes the player with story context         |
-| `QuestionAgent`   | Creates fresh, level-based trivia questions    |
-| `HintAgent`       | Generates helpful but vague hints              |
-| `AnswerCheckerAgent` | Validates answers with semantic comparison |
-
----
-
-## 📦 Dependencies
-
-Install with:
+### 1) Backend (FastAPI)
 
 ```bash
-pip install streamlit langchain crewai sentence-transformers scikit-learn
+python -m venv venv
+# Windows:
+venv\Scripts\activate
+# macOS/Linux:
+# source venv/bin/activate
+
+pip install -r requirements.txt
+
+copy .env.example .env  # Windows PowerShell: Copy-Item .env.example .env
+# then edit .env and set GROQ_API_KEY
+
+uvicorn main:app --reload --port 8000
+```
+
+Health check:
+
+```bash
+curl http://localhost:8000/health
+```
+
+### 2) Frontend (Vite + React)
+
+The frontend is in `quest-master/` and expects the backend at `http://localhost:8000` (see `quest-master/src/lib/api.ts`).
+
+```bash
+cd quest-master
+npm install
+npm run dev
+```
+
+Vite runs on `http://localhost:8080` (configured in `quest-master/vite.config.ts`).
+
+## Quickstart (CLI)
+
+```bash
+python main-cli.py
+```
+
+Note: the CLI and API share the same persisted question history file: `data/history.json`.
+
+## Environment Variables
+
+Create a `.env` (see `.env.example`).
+
+Required (default configuration):
+
+- `GROQ_API_KEY` - used by `core/llm.py` (default provider: `groq`)
+
+Optional (only if you switch providers in code):
+
+- `GLM_API_KEY`
+- `GOOGLE_API_KEY`
+
+Optional (only if the question generator ends up using the search tool):
+
+- `TAVILY_API_KEY`
+
+## API Endpoints
+
+- `GET /health`
+- `POST /game/start` body: `{ "age": number, "interest": string }`
+- `GET /game/{session_id}/question`
+- `POST /game/{session_id}/hint` body: `{ "question": string, "correct_answer": string }`
+- `POST /game/{session_id}/answer-check` body: `{ "question": string, "correct_answer": string, "user_answer": string }`
+- `GET /game/{session_id}/environment`
+- `GET /game/{session_id}/state`
+
+## Notes / Gotchas
+
+- Sessions are in-memory in `main.py` (`SESSIONS` dict). Restarting the server resets all sessions.
+- Question history is persisted globally in `data/history.json` to reduce repeats.
+- CORS is currently wide open (`allow_origins=["*"]`) for local development.
+
+## Frontend Tests
+
+```bash
+cd quest-master
+npm run test
+```

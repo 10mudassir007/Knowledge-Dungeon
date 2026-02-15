@@ -1,4 +1,4 @@
-from agents.agent import generate_question, check_answer, get_hint,generate_environment
+from agents import generate_question, check_answer, get_hint,generate_environment
 from core.tools import game_state
 import json
 import os
