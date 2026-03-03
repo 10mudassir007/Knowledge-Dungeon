@@ -3,13 +3,15 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.chat_models import ChatZhipuAI
 import os
 from functools import lru_cache
-from dotenv import load_dotenv
+from dotenv import load_dotenv,  find_dotenv
 from pydantic import SecretStr
 import warnings
 
+
+
 warnings.filterwarnings("ignore")   
 
-load_dotenv()
+load_dotenv(dotenv_path=r"F:\Files\Portfolio\Knowledge-Dungeon\.env", override=True)
 
 def _require_env(var_name: str) -> str:
     value = os.getenv(var_name)
@@ -44,7 +46,7 @@ def _get_llm_cached(provider: str):
     if provider == "gemini":
         google_api_key = _require_env("GOOGLE_API_KEY")
         return ChatGoogleGenerativeAI(
-            model="gemini-3-flash-preview",
+            model="gemini-3.1-flash-preview",
             api_key=google_api_key,
             response_format="text",
         )

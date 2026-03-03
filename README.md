@@ -1,18 +1,17 @@
 # Knowledge Dungeon
 
-An AI-powered quiz dungeon game.
+An AI-powered quiz dungeon game built with **Streamlit**.
 
-- Backend: FastAPI API that starts a session, generates dungeon flavor text, asks questions, gives hints, and checks answers.
-- Frontend: Vite + React (shadcn/ui) client in `quest-master/`.
-- Optional CLI: quick terminal version in `main-cli.py`.
+- **App**: Streamlit single-page application (`app.py`)
+- **Optional CLI**: quick terminal version in `main-cli.py`
 
 ## How It Works
 
-- You start a game with an `age` and `interest`.
-- The backend uses an LLM (LangChain) to generate:
+- You start a game by entering your **name**, **age**, and **interest**.
+- The app uses an LLM (LangChain) to generate:
   - a short in-world environment narration
-  - a question (returned as `question || answer` internally)
-  - a hint
+  - a quiz question (returned as `question || answer` internally)
+  - a hint (on request)
   - a correctness verdict ("Correct" / "Incorrect")
 - Game rules:
   - `3` lives
@@ -22,17 +21,14 @@ An AI-powered quiz dungeon game.
 
 ## Repo Layout
 
-- `main.py` - FastAPI server (default for the web app)
+- `app.py` - Streamlit application (main entry point)
 - `main-cli.py` - CLI game loop
-- `agents/agent.py` - LLM-driven environment/question/hint/check logic
+- `agents/` - LLM-driven environment / question / hint / answer-check logic
 - `core/llm.py` - LLM provider selection + env var loading
-- `core/tools.py` - point/life tools + optional search tool
+- `core/tools.py` - point / life tools + optional search tool
 - `data/history.json` - persisted question history (auto-created)
-- `quest-master/` - React frontend
 
-## Quickstart (Web App)
-
-### 1) Backend (FastAPI)
+## Quickstart
 
 ```bash
 python -m venv venv
@@ -46,26 +42,10 @@ pip install -r requirements.txt
 copy .env.example .env  # Windows PowerShell: Copy-Item .env.example .env
 # then edit .env and set GROQ_API_KEY
 
-uvicorn main:app --reload --port 8000
+streamlit run app.py
 ```
 
-Health check:
-
-```bash
-curl http://localhost:8000/health
-```
-
-### 2) Frontend (Vite + React)
-
-The frontend is in `quest-master/` and expects the backend at `http://localhost:8000` (see `quest-master/src/lib/api.ts`).
-
-```bash
-cd quest-master
-npm install
-npm run dev
-```
-
-Vite runs on `http://localhost:8080` (configured in `quest-master/vite.config.ts`).
+The app opens in your browser at `http://localhost:8501`.
 
 ## Quickstart (CLI)
 
@@ -73,7 +53,7 @@ Vite runs on `http://localhost:8080` (configured in `quest-master/vite.config.ts
 python main-cli.py
 ```
 
-Note: the CLI and API share the same persisted question history file: `data/history.json`.
+Note: the CLI and Streamlit app share the same persisted question history file: `data/history.json`.
 
 ## Environment Variables
 
@@ -91,13 +71,6 @@ Optional (only if you switch providers in code):
 Optional (only if the question generator ends up using the search tool):
 
 - `TAVILY_API_KEY`
-
-## API Endpoints
-
-- `GET /health`
-- `POST /game/start` body: `{ "age": number, "interest": string }`
-- `GET /game/{session_id}/question`
-- `POST /game/{session_id}/hint` body: `{ "question": string, "correct_answer": string }`
 - `POST /game/{session_id}/answer-check` body: `{ "question": string, "correct_answer": string, "user_answer": string }`
 - `GET /game/{session_id}/environment`
 - `GET /game/{session_id}/state`
