@@ -1,70 +1,60 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Optional
-import json
+import logging
 import os
-import uuid
+import threading
+import time
+from contextlib import asynccontextmanager
+from pathlib import Path
 
-from agents import generate_question, check_answer, get_hint, generate_environment
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
-# -----------------------------
-# Persistence (question history)
-# -----------------------------
-HISTORY_PATH = os.path.join("data", "history.json")
+from agents import (
+    AnswerCheckError,
+    QuestionGenerationError,
+    check_answer,
+    generate_environment,
+    generate_question,
+    get_hint,
+)
+from core.history import HISTORY_LIMIT, HistoryStore
+from core.llm import ProviderUnavailable
+from core.rules import GameState, apply_answer
+from core.sessions import SESSION_TTL_SECONDS, ActiveQuestion, Session, SessionStore
+from core.text import normalize_answer
+from core.tools import is_search_configured, warn_if_search_unconfigured
 
+logger = logging.getLogger(__name__)
 
-def load_history(path: str):
-    try:
-        if not os.path.exists(path):
-            return []
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data if isinstance(data, list) else []
-    except Exception:
-        return []
+MAX_ANSWER_LENGTH = 500
+DUPLICATE_GENERATION_ATTEMPTS = 2
 
+DATA_DIR = os.environ.get("DATA_DIR", "data")
+HISTORY_PATH = os.path.join(DATA_DIR, "history.json")
 
-def save_history(path: str, history_list):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(history_list, f, ensure_ascii=False, indent=2)
+# The built frontend. `python main.py` serves the game from here.
+REPO_ROOT = Path(__file__).resolve().parent
+FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
 
-
-# -----------------------------
-# Game rules
-# -----------------------------
-LEVEL_POINTS = 30
-MAX_LEVEL = 3
-STARTING_LIVES = 3
-POINTS_PER_CORRECT = 10
-WIN_POINTS = LEVEL_POINTS * MAX_LEVEL
-
-
-def compute_level(points: int) -> int:
-    # 0-29 => L1, 30-59 => L2, 60-89 => L3
-    return min(MAX_LEVEL, (points // LEVEL_POINTS) + 1)
-
-
-# -----------------------------
-# In-memory session store
-# -----------------------------
-# NOTE: This stores state in memory. If you restart the server, all sessions reset.
-SESSIONS: Dict[str, Dict[str, Any]] = {}
+sessions = SessionStore()
+history_store = HistoryStore(HISTORY_PATH, limit=HISTORY_LIMIT)
+_startup_lock = threading.Lock()
 
 
-def get_session_or_404(session_id: str) -> Dict[str, Any]:
-    session = SESSIONS.get(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Invalid session_id")
-    return session
-
-
-def sync_level_and_status(session: Dict[str, Any]) -> None:
-    points = int(session.get("points", 0))
-    session["level"] = compute_level(points)
-    session["won"] = points >= WIN_POINTS
-    session["game_over"] = int(session.get("lives", 0)) <= 0
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with _startup_lock:
+        warn_if_search_unconfigured()
+    logger.info(
+        "Knowledge Dungeon started: data dir=%s history=%s session TTL=%ss",
+        DATA_DIR,
+        HISTORY_PATH,
+        SESSION_TTL_SECONDS,
+    )
+    yield
 
 
 # -----------------------------
@@ -95,31 +85,29 @@ class EnvironmentResponse(BaseModel):
 
 
 class QuestionResponse(BaseModel):
-    question: str
-    # The frontend needs this to call /hint and /answer-check.
-    correct_answer: str
-    lives: int
-    points: int
-    level: int
+    """Only the question text. The answer never leaves the server."""
 
-
-class HintRequest(BaseModel):
     question: str
-    correct_answer: str
 
 
 class HintResponse(BaseModel):
     hint: str
 
 
-class CheckAnswerRequest(BaseModel):
-    question: str
-    correct_answer: str
-    user_answer: str
+class HintRequest(BaseModel):
+    """The body is ignored: hints are answered from the server's own question."""
+
+
+class AnswerCheckRequest(BaseModel):
+    """The player's answer, and nothing else. Any question/answer fields sent
+    by a client are ignored; extra keys are dropped by pydantic."""
+
+    answer: str = Field(..., max_length=MAX_ANSWER_LENGTH)
 
 
 class CheckAnswerResponse(BaseModel):
     verdict: str
+    correct: bool
     lives: int
     points: int
     level: int
@@ -135,12 +123,78 @@ class StateResponse(BaseModel):
     game_over: bool
 
 
+class HealthResponse(BaseModel):
+    status: str
+    provider: str
+    search_available: bool
+    active_sessions: int
+
+
+# -----------------------------
+# Helpers
+# -----------------------------
+def state_response(state: GameState) -> StateResponse:
+    return StateResponse(
+        lives=state.lives,
+        points=state.points,
+        level=state.level,
+        won=state.won,
+        game_over=state.game_over,
+    )
+
+
+def require_session(session_id: str) -> Session:
+    session = sessions.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Invalid or expired session_id")
+    return session
+
+
+def require_playable(session: Session) -> None:
+    if session.state.game_over:
+        raise HTTPException(status_code=400, detail="Game over")
+    if session.state.won:
+        raise HTTPException(status_code=400, detail="Game already won")
+
+
+def require_active_question(session: Session) -> ActiveQuestion:
+    current = session.current
+    if current is None:
+        raise HTTPException(status_code=409, detail="No active question. Request one first.")
+    return current
+
+
+def record_question(session: Session, draft, known_keys: set) -> bool:
+    """Store the active question and remember it in history.
+
+    Returns False (and writes nothing) if the normalized question text is
+    already in history, so repeats are skipped.
+    """
+    key = normalize_answer(draft.question)
+    is_duplicate = bool(key) and key in known_keys
+
+    session.current = ActiveQuestion(
+        question=draft.question,
+        answer=draft.answer,
+        accepted_alternatives=list(draft.accepted_alternatives),
+        asked_at=time.time(),
+    )
+    if is_duplicate:
+        return False
+
+    entry = {"question": draft.question, "answer": draft.answer}
+    session.history.append(entry)
+    del session.history[:-HISTORY_LIMIT]
+    history_store.append(entry)
+    known_keys.add(key)
+    return True
+
+
 # -----------------------------
 # App
 # -----------------------------
-app = FastAPI(title="Knowledge Dungeon API")
+app = FastAPI(title="Knowledge Dungeon API", lifespan=lifespan)
 
-# Allow browser clients (adjust origins for production)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -150,149 +204,186 @@ app.add_middleware(
 )
 
 
-@app.get("/health")
+@app.exception_handler(ProviderUnavailable)
+async def provider_unavailable_handler(request: Request, exc: ProviderUnavailable):
+    logger.warning("LLM provider unavailable: %s", exc)
+    return JSONResponse(status_code=503, content={"detail": "The game AI is unavailable right now. Please try again."})
+
+
+@app.exception_handler(AnswerCheckError)
+async def answer_check_error_handler(request: Request, exc: AnswerCheckError):
+    logger.warning("Answer check failed: %s", exc)
+    return JSONResponse(status_code=503, content={"detail": "The answer checker is unavailable right now. Please try again."})
+
+
+@app.exception_handler(QuestionGenerationError)
+async def question_generation_error_handler(request: Request, exc: QuestionGenerationError):
+    logger.error("Question generation failed: %s", exc)
+    return JSONResponse(status_code=502, content={"detail": "Could not generate a question right now. Please try again."})
+
+
+@app.exception_handler(Exception)
+async def unhandled_error_handler(request: Request, exc: Exception):
+    # Full traceback stays server-side; the client only sees a generic message.
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path, exc_info=exc)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error."})
+
+
+@app.get("/health", response_model=HealthResponse)
 def health():
-    return {"status": "ok"}
+    return HealthResponse(
+        status="ok",
+        provider=(os.getenv("LLM_PROVIDER") or "groq").strip().lower(),
+        search_available=is_search_configured(),
+        active_sessions=sessions.active_count(),
+    )
 
 
 @app.post("/game/start", response_model=StartGameResponse)
 def start_game(payload: StartGameRequest):
-    session_id = str(uuid.uuid4())
-
-    session = {
-        "age": payload.age,
-        "interest": payload.interest,
-        "points": 0,
-        "lives": STARTING_LIVES,
-        "level": 1,
-        "won": False,
-        "game_over": False,
-    }
-    sync_level_and_status(session)
-    SESSIONS[session_id] = session
-
-    environment = generate_environment(payload.interest, payload.age, session["level"])
+    session = sessions.create(payload.age, payload.interest)
+    environment = generate_environment(session.interest, session.age, session.state.level)
 
     return StartGameResponse(
-        session_id=session_id,
-        age=payload.age,
-        interest=payload.interest,
-        lives=session["lives"],
-        points=session["points"],
-        level=session["level"],
+        session_id=session.session_id,
+        age=session.age,
+        interest=session.interest,
+        lives=session.state.lives,
+        points=session.state.points,
+        level=session.state.level,
         environment=environment,
     )
 
 
+@app.get("/game/{session_id}", response_model=StateResponse)
 @app.get("/game/{session_id}/state", response_model=StateResponse)
 def get_state(session_id: str):
-    session = get_session_or_404(session_id)
-    sync_level_and_status(session)
-    return StateResponse(
-        lives=session["lives"],
-        points=session["points"],
-        level=session["level"],
-        won=session["won"],
-        game_over=session["game_over"],
-    )
+    return state_response(require_session(session_id).state)
 
 
 @app.get("/game/{session_id}/environment", response_model=EnvironmentResponse)
 def get_environment(session_id: str):
-    session = get_session_or_404(session_id)
-    sync_level_and_status(session)
-
-    if session["game_over"]:
-        raise HTTPException(status_code=400, detail="Game over")
-    if session["won"]:
-        raise HTTPException(status_code=400, detail="Game already won")
-
-    environment = generate_environment(session["interest"], session["age"], session["level"])
+    session = require_session(session_id)
+    require_playable(session)
 
     return EnvironmentResponse(
-        environment=environment,
-        lives=session["lives"],
-        points=session["points"],
-        level=session["level"],
-        won=session["won"],
-        game_over=session["game_over"],
+        environment=generate_environment(session.interest, session.age, session.state.level),
+        **state_response(session.state).model_dump(),
     )
 
 
 @app.get("/game/{session_id}/question", response_model=QuestionResponse)
 def get_question(session_id: str):
-    session = get_session_or_404(session_id)
-    sync_level_and_status(session)
+    session = require_session(session_id)
 
-    if session["game_over"]:
-        raise HTTPException(status_code=400, detail="Game over")
-    if session["won"]:
-        raise HTTPException(status_code=400, detail="Game already won")
+    # An unanswered question is served again rather than replaced.
+    if session.current is not None:
+        return QuestionResponse(question=session.current.question)
 
-    # Persisted global history is used only to avoid repeating questions, same as CLI.
-    history = load_history(HISTORY_PATH)
+    require_playable(session)
 
-    raw = generate_question(session["interest"], session["age"], history)
-    parts = raw.split("||", 1)
-    if len(parts) != 2:
-        raise HTTPException(status_code=500, detail="Question format error from model")
+    known_keys = history_store.known_question_keys()
+    known_keys.update(normalize_answer(entry.get("question", "")) for entry in session.history)
 
-    q_text = parts[0].strip()
-    q_answer = parts[1].strip()
+    draft = None
+    for _ in range(DUPLICATE_GENERATION_ATTEMPTS):
+        candidate = generate_question(session.interest, session.age, session.history)
+        draft = candidate
+        if normalize_answer(candidate.question) not in known_keys:
+            break
 
-    history.append({"question": q_text, "answer": q_answer})
-    save_history(HISTORY_PATH, history)
-
-    return QuestionResponse(
-        question=q_text,
-        correct_answer=q_answer,
-        lives=session["lives"],
-        points=session["points"],
-        level=session["level"],
-    )
+    # record_question writes nothing to history when the question is a repeat.
+    record_question(session, draft, known_keys)
+    return QuestionResponse(question=draft.question)
 
 
 @app.post("/game/{session_id}/hint", response_model=HintResponse)
-def hint(session_id: str, payload: HintRequest):
-    session = get_session_or_404(session_id)
-    sync_level_and_status(session)
+def hint(session_id: str, payload: HintRequest = None):
+    session = require_session(session_id)
+    require_playable(session)
+    current = require_active_question(session)
 
-    if session["game_over"]:
-        raise HTTPException(status_code=400, detail="Game over")
-    if session["won"]:
-        raise HTTPException(status_code=400, detail="Game already won")
-
-    hint_text = get_hint(payload.question, payload.correct_answer, session["interest"])
-    return HintResponse(hint=hint_text)
+    return HintResponse(hint=get_hint(current.question, current.answer, session.interest))
 
 
 @app.post("/game/{session_id}/answer-check", response_model=CheckAnswerResponse)
-def answer_check(session_id: str, payload: CheckAnswerRequest):
-    session = get_session_or_404(session_id)
-    sync_level_and_status(session)
+def answer_check(session_id: str, payload: AnswerCheckRequest):
+    session = require_session(session_id)
+    require_playable(session)
+    current = require_active_question(session)
 
-    if session["game_over"]:
-        raise HTTPException(status_code=400, detail="Game over")
-    if session["won"]:
-        raise HTTPException(status_code=400, detail="Game already won")
+    # Consume the question up front so one question can never be scored twice,
+    # even if two requests race.
+    session.current = None
 
-    verdict = check_answer(payload.question, payload.correct_answer, payload.user_answer)
-    verdict_norm = (verdict or "").strip().lower()
-
-    # IMPORTANT: update session state deterministically based on verdict.
-    # NOTE: do NOT use substring matching ("correct" in "incorrect" is True).
-    if verdict_norm == "correct":
-        session["points"] = int(session.get("points", 0)) + POINTS_PER_CORRECT
-    else:
-        session["lives"] = max(0, int(session.get("lives", 0)) - 1)
-
-    sync_level_and_status(session)
+    correct = check_answer(
+        current.question,
+        current.answer,
+        payload.answer,
+        current.accepted_alternatives,
+    )
+    session.state = apply_answer(session.state, correct)
 
     return CheckAnswerResponse(
-        verdict="Correct" if verdict_norm == "correct" else "Incorrect",
-        lives=session["lives"],
-        points=session["points"],
-        level=session["level"],
-        won=session["won"],
-        game_over=session["game_over"],
+        verdict="Correct" if correct else "Incorrect",
+        correct=correct,
+        lives=session.state.lives,
+        points=session.state.points,
+        level=session.state.level,
+        won=session.state.won,
+        game_over=session.state.game_over,
+    )
+
+
+# -----------------------------
+# Super power
+# -----------------------------
+class RevealResponse(BaseModel):
+    """The answer to the active question. Additive: no existing route changed."""
+
+    answer: str
+
+
+@app.post("/game/{session_id}/reveal", response_model=RevealResponse)
+def reveal_answer(session_id: str):
+    session = require_session(session_id)
+    require_playable(session)
+    current = require_active_question(session)
+    # The question stays active, so the player still has to submit it.
+    return RevealResponse(answer=current.answer)
+
+
+# -----------------------------
+# Static frontend
+# -----------------------------
+# Mounted last so it never shadows /game or /health.
+if FRONTEND_DIST.is_dir():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def spa(full_path: str):
+        """Serve the built SPA, falling back to index.html for client routes."""
+        if full_path.startswith(("game", "health")):
+            raise HTTPException(status_code=404, detail="Not found")
+        candidate = FRONTEND_DIST / full_path
+        if full_path and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(FRONTEND_DIST / "index.html")
+else:  # pragma: no cover - developer has not run the frontend build yet
+    logger.warning(
+        "frontend/dist not found at %s - run `npm run build` in frontend/ to serve the game.",
+        FRONTEND_DIST,
+    )
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    # Sessions live in process memory, so this must stay a single worker.
+    uvicorn.run(
+        "main:app",
+        host=os.getenv("HOST", "127.0.0.1"),
+        port=int(os.getenv("PORT", "8000")),
+        reload=False,
+        workers=1,
     )

@@ -1,0 +1,202 @@
+{
+  "file": "D:\\Portfolio\\Knowledge-Dungeon\\dungeon\\dungeon.glb",
+  "size_bytes": 169368,
+  "size_mb": 0.162,
+  "total_triangles": 2984,
+  "unique_materials": [
+    "Bone",
+    "CrystalEmissive",
+    "FlameEmissive",
+    "Metal",
+    "StoneCeiling",
+    "StoneFloor",
+    "StoneWall",
+    "Wood"
+  ],
+  "object_count": 27,
+  "empties": [
+    "Altar",
+    "Barrel",
+    "Crate",
+    "Hint_Lectern",
+    "Life_1",
+    "Life_2",
+    "Life_3",
+    "Torch_12_4",
+    "Torch_2_6",
+    "Torch_6_1",
+    "Torch_6_4"
+  ],
+  "meshes": [
+    "AltarBlock",
+    "AltarCrystal",
+    "BarrelMesh",
+    "Brazier_1",
+    "Brazier_2",
+    "Brazier_3",
+    "Ceiling",
+    "CrateMesh",
+    "Enemy_3_3",
+    "Enemy_8_3",
+    "Flame_1",
+    "Flame_2",
+    "Flame_3",
+    "Floor",
+    "Lectern",
+    "Walls"
+  ],
+  "checks": [
+    {
+      "check": "exactly one 'Altar' empty",
+      "ok": true,
+      "detail": "found 1"
+    },
+    {
+      "check": "Altar centre (10.5, 0, 6.5) = cell (10,6)",
+      "ok": true,
+      "detail": "file space [10.5, 0.0, 6.5]"
+    },
+    {
+      "check": "exactly four Torch_ empties",
+      "ok": true,
+      "detail": "found 4 ['Torch_12_4', 'Torch_2_6', 'Torch_6_1', 'Torch_6_4']"
+    },
+    {
+      "check": "Torch_12_4 at cell (12,4)",
+      "ok": true,
+      "detail": "[12.5, 1.4, 4.5] expected [12.5, 1.4, 4.5]"
+    },
+    {
+      "check": "Torch_2_6 at cell (2,6)",
+      "ok": true,
+      "detail": "[2.5, 1.4, 6.5] expected [2.5, 1.4, 6.5]"
+    },
+    {
+      "check": "Torch_6_1 at cell (6,1)",
+      "ok": true,
+      "detail": "[6.5, 1.4, 1.5] expected [6.5, 1.4, 1.5]"
+    },
+    {
+      "check": "Torch_6_4 at cell (6,4)",
+      "ok": true,
+      "detail": "[6.5, 1.4, 4.5] expected [6.5, 1.4, 4.5]"
+    },
+    {
+      "check": "torch grid coords",
+      "ok": true,
+      "detail": "[(2, 6), (6, 1), (6, 4), (12, 4)]"
+    },
+    {
+      "check": "exactly one Hint_Lectern",
+      "ok": true,
+      "detail": "found 1"
+    },
+    {
+      "check": "Hint_Lectern at cell (1,1)",
+      "ok": true,
+      "detail": "file space [1.5, 0.0, 1.5] expected [1.5, 0.0, 1.5]"
+    },
+    {
+      "check": "lectern geometry exported",
+      "ok": true,
+      "detail": "Lectern mesh present: True"
+    },
+    {
+      "check": "three Life_ empties",
+      "ok": true,
+      "detail": "['Life_1', 'Life_2', 'Life_3']"
+    },
+    {
+      "check": "Life_1 at cell (1,5)",
+      "ok": true,
+      "detail": "file space [1.5, 0.0, 5.5] expected [1.5, 0.0, 5.5]"
+    },
+    {
+      "check": "Life_2 at cell (2,5)",
+      "ok": true,
+      "detail": "file space [2.5, 0.0, 5.5] expected [2.5, 0.0, 5.5]"
+    },
+    {
+      "check": "Life_3 at cell (3,5)",
+      "ok": true,
+      "detail": "file space [3.5, 0.0, 5.5] expected [3.5, 0.0, 5.5]"
+    },
+    {
+      "check": "matching Flame_ meshes",
+      "ok": true,
+      "detail": "['Flame_1', 'Flame_2', 'Flame_3']"
+    },
+    {
+      "check": "one Enemy_ per E cell, named by grid",
+      "ok": true,
+      "detail": "['Enemy_3_3', 'Enemy_8_3'] expected ['Enemy_3_3', 'Enemy_8_3']"
+    },
+    {
+      "check": "wall blocks == '#' cell count",
+      "ok": true,
+      "detail": "57 blocks (684 triangles) vs 57 wall cells"
+    },
+    {
+      "check": "Y-up: floor at y=0, ceiling at y=3",
+      "ok": true,
+      "detail": "file-space floor top y=0.0, ceiling y=3.0"
+    },
+    {
+      "check": "triangles under 150,000",
+      "ok": true,
+      "detail": "2984"
+    },
+    {
+      "check": "unique materials under 12",
+      "ok": true,
+      "detail": "8 ['Bone', 'CrystalEmissive', 'FlameEmissive', 'Metal', 'StoneCeiling', 'StoneFloor', 'StoneWall', 'Wood']"
+    },
+    {
+      "check": "file under 8 MB",
+      "ok": true,
+      "detail": "0.162 MB"
+    },
+    {
+      "check": "Walls exported",
+      "ok": true,
+      "detail": "present=True"
+    },
+    {
+      "check": "Floor exported",
+      "ok": true,
+      "detail": "present=True"
+    },
+    {
+      "check": "Ceiling exported",
+      "ok": true,
+      "detail": "present=True"
+    },
+    {
+      "check": "AltarBlock exported",
+      "ok": true,
+      "detail": "present=True"
+    },
+    {
+      "check": "AltarCrystal exported",
+      "ok": true,
+      "detail": "present=True"
+    },
+    {
+      "check": "BarrelMesh exported",
+      "ok": true,
+      "detail": "present=True"
+    },
+    {
+      "check": "CrateMesh exported",
+      "ok": true,
+      "detail": "present=True"
+    },
+    {
+      "check": "no cameras or lights",
+      "ok": true,
+      "detail": "none found"
+    }
+  ],
+  "failures": [],
+  "passed": true
+}

@@ -1,95 +1,110 @@
-from agents import generate_question, check_answer, get_hint,generate_environment
-from core.tools import game_state
-import json
-import os
+"""Terminal version of Knowledge Dungeon.
 
-HISTORY_PATH = os.path.join("data", "history.json")
+Shares the game's rules with the API: both call core.rules.apply_answer, so
+points and lives are decided in exactly one place. History lives in
+data/history_cli.json so the CLI never writes the API's file.
+"""
 
-def load_history(path: str):
+from agents import (
+    AnswerCheckError,
+    QuestionGenerationError,
+    check_answer,
+    generate_environment,
+    generate_question,
+    get_hint,
+)
+from core.history import HISTORY_LIMIT, HistoryStore
+from core.llm import ProviderUnavailable
+from core.rules import MAX_LEVEL, apply_answer, new_state
+
+DATA_DIR = "data"
+HISTORY_PATH = DATA_DIR + "/history_cli.json"
+
+
+def _safe_call(label, func, *args):
+    """Run an agent call, turning provider/validation failures into a message."""
     try:
-        if not os.path.exists(path):
-            return []
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data if isinstance(data, list) else []
-    except Exception:
-        return []
+        return func(*args)
+    except (ProviderUnavailable, AnswerCheckError) as exc:
+        print(f"[{label} unavailable] {exc}")
+    except QuestionGenerationError as exc:
+        print(f"[{label} failed] {exc}")
+    return None
 
 
-def save_history(path: str, history_list):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(history_list, f, ensure_ascii=False, indent=2)
+def play(history_store: HistoryStore) -> None:
+    genre = input("Enter a genre you're interested in: ").strip()
+    if not genre:
+        print("A genre is required.")
+        return
 
-genre = input("Enter a genre you're interested in: ")
-age = int(input("Enter your age: "))
-history = load_history(HISTORY_PATH)  # persisted history [{"question":..., "answer":...}, ...]
+    try:
+        age = int(input("Enter your age: ").strip())
+    except ValueError:
+        print("Age must be a number.")
+        return
 
-# Initialize lives in the global game state
-game_state["lives"] = 3
+    state = new_state()
+    session_history: list = []
 
-# Leveling rules
-LEVEL_POINTS = 30
-MAX_LEVEL = 3
-level = 1
+    while True:
+        if state.game_over:
+            print("Game Over! You've run out of lives.")
+            break
 
-while True:
-    if game_state["lives"] == 0:
-        print("Game Over! You've run out of lives.")
-        break
-
-    # Derive level from current points (0-29 => L1, 30-59 => L2, 60-89 => L3)
-    points = game_state["points"]
-    new_level = min(MAX_LEVEL, (points // LEVEL_POINTS) + 1)
-
-    if new_level > level:
-        level = new_level
         print("====================================")
-        print(f"Level Up! You are now Level {level}/{MAX_LEVEL}.")
 
-    # Win condition: 3 levels of 30 points each => 90 points
-    if points >= LEVEL_POINTS * MAX_LEVEL:
-        print("====================================")
-        print("Game Win! You cleared all 3 levels!")
-        print("Final Points:", game_state["points"])
-        break
+        environment = _safe_call("narrator", generate_environment, genre, age, state.level)
+        if environment:
+            print(environment)
 
-    print("====================================")
-    print(generate_environment(genre, age, level))
+        print()
+        print("Lives left:", state.lives)
+        print(f"Level: {state.level}/{MAX_LEVEL}")
+        print("Current Points:", state.points)
 
-    print()
-    print("Lives left:", game_state["lives"])
-    print(f"Level: {level}/{MAX_LEVEL}")
-    print("Current Points:", game_state["points"])
+        draft = _safe_call("question", generate_question, genre, age, session_history)
+        if draft is None:
+            print("Cannot continue without a question.")
+            break
 
-    question = generate_question(genre, age, history)
+        print("Question:", draft.question)
+        print()
 
-    parts = question.split("||", 1)
-    if len(parts) != 2:
-        print("Question format error: expected 'question||answer'. Got:")
-        print(question)
-        break
+        hint = _safe_call("hint", get_hint, draft.question, draft.answer, genre)
+        if hint:
+            print(hint)
+        print()
 
-    q_text = parts[0].strip()
-    q_answer = parts[1].strip()
+        entry = {"question": draft.question, "answer": draft.answer}
+        session_history.append(entry)
+        del session_history[:-HISTORY_LIMIT]
+        history_store.append(entry)
 
-    print("Question:", q_text)
+        player_answer = input("Your answer: ").strip()
 
-    history.append({"question": q_text, "answer": q_answer})
-    save_history(HISTORY_PATH, history)
+        correct = _safe_call("answer checker", check_answer, draft.question, draft.answer, player_answer, draft.accepted_alternatives)
+        if correct is None:
+            print("Could not check that answer - it does not count.")
+            continue
 
-    print("")
+        state = apply_answer(state, bool(correct))
 
-    # get_hint expects (question, answer, user_interest)
-    print(get_hint(q_text, q_answer, genre))
+        print()
+        print("Correct!" if correct else "Incorrect.")
+        print("Lives left:", state.lives)
+        print("Current Points:", state.points)
 
-    answer = input("Your answer: ").strip()
+        if state.won:
+            print("====================================")
+            print("Game Win! You cleared all 3 levels!")
+            print("Final Points:", state.points)
+            break
 
-    print("")
 
-    response = check_answer(q_text, q_answer, answer)
-    print(response)
+def main() -> None:
+    play(HistoryStore(HISTORY_PATH, limit=HISTORY_LIMIT))
 
-    # Lives/points are updated by tools; just show current state
-    print("Lives left:", game_state["lives"])
-    print("Current Points:", game_state["points"])
+
+if __name__ == "__main__":
+    main()

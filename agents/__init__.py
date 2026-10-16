@@ -1,5 +1,5 @@
-from agents.question import generate_question
-from agents.answer import check_answer
+from agents.question import QuestionDraft, QuestionGenerationError, generate_question
+from agents.answer import AnswerCheckError, check_answer
 from agents.hint import get_hint
 from agents.environment import generate_environment
 
@@ -8,4 +8,7 @@ __all__ = [
     "check_answer",
     "get_hint",
     "generate_environment",
+    "QuestionDraft",
+    "QuestionGenerationError",
+    "AnswerCheckError",
 ]

@@ -11,10 +11,12 @@ An AI-powered quiz dungeon game.
 - You start a game with an `age` and `interest`.
 - The backend uses an LLM (LangChain) to generate:
   - a short in-world environment narration
-  - a question (returned as `question || answer` internally)
+  - a structured question (`{"question", "answer", "accepted_alternatives"}`)
   - a hint
-  - a correctness verdict ("Correct" / "Incorrect")
-- Game rules:
+  - a correctness verdict
+- Answers are checked **without trusting the LLM**: a normalized string comparison decides it
+  whenever possible, and an LLM judge is only consulted for genuinely different phrasings.
+- Game rules (the single source of truth is `core/rules.py`):
   - `3` lives
   - `+10` points per correct answer
   - level up every `30` points (max level `3`)
@@ -24,10 +26,15 @@ An AI-powered quiz dungeon game.
 
 - `main.py` - FastAPI server (default for the web app)
 - `main-cli.py` - CLI game loop
-- `agents/agent.py` - LLM-driven environment/question/hint/check logic
-- `core/llm.py` - LLM provider selection + env var loading
-- `core/tools.py` - point/life tools + optional search tool
-- `data/history.json` - persisted question history (auto-created)
+- `agents/` - one LangChain agent per LLM task (`question`, `hint`, `answer`, `environment`)
+- `core/rules.py` - pure game rules: `GameState`, `apply_answer`
+- `core/llm.py` - provider selection, env loading, timeouts, retries
+- `core/tools.py` - optional Tavily search tool
+- `core/history.py` - capped, atomic question history file
+- `core/sessions.py` - in-memory sessions with a TTL
+- `core/text.py` - answer/history text normalization
+- `tests/` - pytest suite (runs offline, every agent call is stubbed)
+- `data/` - runtime state (gitignored apart from `data/.gitkeep`)
 - `quest-master/` - React frontend
 
 ## Quickstart (Web App)
@@ -73,40 +80,89 @@ Vite runs on `http://localhost:8080` (configured in `quest-master/vite.config.ts
 python main-cli.py
 ```
 
-Note: the CLI and API share the same persisted question history file: `data/history.json`.
+The CLI uses the same `core/rules.py` as the API, but writes its history to
+`data/history_cli.json` so the two never touch the same file.
 
 ## Environment Variables
 
-Create a `.env` (see `.env.example`).
+Copy `.env.example` to `.env`. Only the project's own `.env` is loaded - parent directories
+are deliberately not searched.
 
-Required (default configuration):
+- `LLM_PROVIDER` - `groq` (default), `glm`, or `gemini`
+- `GROQ_API_KEY` - required when `LLM_PROVIDER=groq`
+- `GLM_API_KEY` - required when `LLM_PROVIDER=glm`
+- `GEMINI_API_KEY` - required when `LLM_PROVIDER=gemini`
+- `TAVILY_API_KEY` - optional. Without it the game still works: questions come from the
+  model's own knowledge instead of search. `GET /health` reports whether it is set.
 
-- `GROQ_API_KEY` - used by `core/llm.py` (default provider: `groq`)
-
-Optional (only if you switch providers in code):
-
-- `GLM_API_KEY`
-- `GOOGLE_API_KEY`
-
-Optional (only if the question generator ends up using the search tool):
-
-- `TAVILY_API_KEY`
+`.env` is gitignored. Never commit real keys.
 
 ## API Endpoints
 
-- `GET /health`
+- `GET /health` - status, provider name, whether search is configured, active session count
 - `POST /game/start` body: `{ "age": number, "interest": string }`
-- `GET /game/{session_id}/question`
-- `POST /game/{session_id}/hint` body: `{ "question": string, "correct_answer": string }`
-- `POST /game/{session_id}/answer-check` body: `{ "question": string, "correct_answer": string, "user_answer": string }`
-- `GET /game/{session_id}/environment`
-- `GET /game/{session_id}/state`
+- `GET /game/{sid}` / `GET /game/{sid}/state` - lives, points, level, won, game_over
+- `GET /game/{sid}/environment`
+- `GET /game/{sid}/question` - `{ "question": ... }` only; the answer stays server-side
+- `POST /game/{sid}/hint` - body ignored, hints the active question
+- `POST /game/{sid}/answer-check` body: `{ "answer": string }` (max 500 chars)
 
-## Notes / Gotchas
+### Question lifecycle
 
-- Sessions are in-memory in `main.py` (`SESSIONS` dict). Restarting the server resets all sessions.
-- Question history is persisted globally in `data/history.json` to reduce repeats.
-- CORS is currently wide open (`allow_origins=["*"]`) for local development.
+The server owns the active question. Each session stores one `current` question
+(`question`, `answer`, `accepted_alternatives`, `asked_at`):
+
+- `GET /question` returns the active question again if one is already in progress.
+- `POST /hint` and `POST /answer-check` read the question and answer from the server only;
+  anything a client puts in the body is ignored.
+- `POST /answer-check` returns `409` when no question is active, and consumes the question, so
+  the same question cannot be scored twice.
+- The answer and the accepted alternatives are never returned by any endpoint.
+
+### Answer checking
+
+1. The stored answer, the accepted alternatives and the player's answer are normalized
+   (casefold, Unicode NFKD, punctuation stripped, whitespace collapsed, leading article removed).
+2. A match on any of them is correct with no LLM call - "The Eiffel Tower." matches
+   "eiffel tower".
+3. Otherwise, if the answer is non-empty, an LLM judge decides. The player's text is wrapped in
+   `<player_answer>...</player_answer>` and the prompt tells the judge to treat it strictly as
+   data. The judge must return `{"correct": true|false}`; the reply is parsed with `json.loads`
+   and a Pydantic model, and **any** parse failure counts as wrong.
+
+### Error codes
+
+| Code | Meaning |
+| --- | --- |
+| `404` | Unknown or expired session |
+| `409` | No active question (hint or answer-check) |
+| `400` | Game over or already won |
+| `422` | Invalid request body |
+| `502` | Question model never produced valid JSON |
+| `503` | LLM provider unavailable or misconfigured |
+| `500` | Unexpected error - generic message, traceback logged server-side only |
+
+Every model call gets a 15-second timeout and one retry with exponential backoff.
+
+## Sessions and Persistence
+
+- Sessions live in memory only and expire after **2 hours** of inactivity; expired sessions are
+  evicted on each request. All access is guarded by a `threading.Lock`.
+- Restarting the server resets all sessions.
+- `data/history.json` holds the 50 most recent questions, written atomically (temp file plus
+  `os.replace`) and used to skip repeats. The CLI uses `data/history_cli.json` instead.
+- `data/` is created at startup if missing. Everything in it is safe to delete.
+
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+The suite stubs every agent call and redirects the history file, so it needs no API keys and
+makes no network calls. Coverage includes the scoring rules, the 409/anti-replay behaviour,
+answer spoofing attempts, normalization, judge robustness, history capping and session expiry.
 
 ## Frontend Tests
 

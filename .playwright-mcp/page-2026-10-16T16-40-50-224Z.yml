@@ -1,0 +1,21 @@
+- generic [ref=e8]:
+  - heading "Knowledge Dungeon" [level=1] [ref=e9]
+  - paragraph [ref=e10]: The orcs are already awake.
+  - generic [ref=e11]:
+    - generic [ref=e12]: Your name
+    - textbox "Your name" [active] [ref=e13]:
+      - /placeholder: e.g. Aric
+  - group "Difficulty" [ref=e14]:
+    - button "Squire Common lore. Few orcs. 4 orcs · everyday legends and folk tales" [ref=e16] [cursor=pointer]:
+      - strong [ref=e17]: Squire
+      - generic [ref=e18]: Common lore. Few orcs.
+      - generic [ref=e19]: 4 orcs · everyday legends and folk tales
+    - button "Adept War history and empire. 7 orcs · ancient history and warring kingdoms" [pressed] [ref=e20] [cursor=pointer]:
+      - strong [ref=e21]: Adept
+      - generic [ref=e22]: War history and empire.
+      - generic [ref=e23]: 7 orcs · ancient history and warring kingdoms
+    - button "Legend Forbidden lore. The dungeon stirs. 11 orcs · arcane, cursed and forbidden lore" [ref=e24] [cursor=pointer]:
+      - strong [ref=e25]: Legend
+      - generic [ref=e26]: Forbidden lore. The dungeon stirs.
+      - generic [ref=e27]: 11 orcs · arcane, cursed and forbidden lore
+  - button "Enter the dungeon" [disabled] [ref=e28]

@@ -1,0 +1,251 @@
+{
+ "puddle": {
+  "path": "D:\\Portfolio\\Knowledge-Dungeon\\dungeon\\puddle.glb",
+  "bytes": 20836
+ },
+ "glb": {
+  "bytes": 5272824,
+  "nodes": 95,
+  "meshes": [
+   "Altar_Block",
+   "AltarCrystal",
+   "Ceiling",
+   "Enemy_1_3",
+   "Enemy_1_15",
+   "Enemy_5_9",
+   "Enemy_5_23",
+   "Enemy_10_3",
+   "Floor",
+   "Hint_Lectern_Mesh",
+   "Brazier_1",
+   "Flame_1",
+   "Brazier_2",
+   "Flame_2",
+   "Brazier_3",
+   "Flame_3",
+   "Prop_Barrel_Mesh",
+   "Prop_Barrel_4_Mesh",
+   "Prop_Crate_Mesh",
+   "Prop_Crate_2_Mesh",
+   "Prop_Crate_5_Mesh",
+   "PropFlame_1_10",
+   "PropFlame_1_26",
+   "PropFlame_6_1",
+   "PropFlame_8_16",
+   "PropFlame_10_26",
+   "PropFlame_14_8",
+   "PropFlame_16_16",
+   "PropFlame_18_2",
+   "PropFlame_30_4",
+   "PropFlame_30_18",
+   "PropFlame_36_20",
+   "PropFlame_38_6",
+   "PropTorch_1_10",
+   "PropTorch_1_26",
+   "PropTorch_6_1",
+   "PropTorch_8_16",
+   "PropTorch_10_26",
+   "PropTorch_14_8",
+   "PropTorch_16_16",
+   "PropTorch_18_2",
+   "PropTorch_30_4",
+   "PropTorch_30_18",
+   "PropTorch_36_20",
+   "PropTorch_38_6",
+   "Remains_0",
+   "Remains_1",
+   "Remains_2",
+   "Remains_3",
+   "Remains_4",
+   "Remains_5",
+   "Remains_6",
+   "Remains_7",
+   "Remains_8",
+   "Remains_9",
+   "Remains_10",
+   "Remains_11",
+   "Remains_12",
+   "Remains_13",
+   "Remains_14",
+   "Remains_15",
+   "Remains_16",
+   "Remains_17",
+   "Remains_18",
+   "Remains_19",
+   "Remains_20",
+   "Remains_21",
+   "Remains_22",
+   "Remains_23",
+   "Remains_24",
+   "Remains_25",
+   "Walls"
+  ],
+  "materials": [
+   "prop_stone",
+   "prop_iron_rust",
+   "prop_crystal",
+   "prop_ember",
+   "ceiling_stone",
+   "bone",
+   "metal",
+   "stone_floor",
+   "prop_parchment",
+   "prop_iron",
+   "prop_charred",
+   "prop_flame",
+   "prop_wood",
+   "prop_bone",
+   "stone_wall"
+  ],
+  "has_color_attr": true
+ },
+ "image_format": "WEBP",
+ "materials": {
+  "prop_stone": {
+   "base": [
+    0.44,
+    0.42,
+    0.48,
+    1
+   ],
+   "metallic": 0,
+   "roughness": 0.76
+  },
+  "prop_iron_rust": {
+   "base": [
+    0.38,
+    0.21,
+    0.12,
+    1
+   ],
+   "metallic": 0.35,
+   "roughness": 0.7
+  },
+  "prop_crystal": {
+   "base": [
+    0,
+    0,
+    0,
+    1
+   ],
+   "metallic": 1.0,
+   "roughness": 1.0
+  },
+  "prop_ember": {
+   "base": [
+    0,
+    0,
+    0,
+    1
+   ],
+   "metallic": 1.0,
+   "roughness": 1.0
+  },
+  "ceiling_stone": {
+   "base": [
+    0.4,
+    0.4,
+    0.4,
+    1
+   ],
+   "metallic": 0,
+   "roughness": 0.95
+  },
+  "bone": {
+   "base": [
+    0.62,
+    0.58,
+    0.46,
+    1
+   ],
+   "metallic": 0,
+   "roughness": 0.6
+  },
+  "metal": {
+   "base": [
+    0.1,
+    0.1,
+    0.11,
+    1
+   ],
+   "metallic": 1.0,
+   "roughness": 0.45
+  },
+  "stone_floor": {
+   "base": [
+    0.42,
+    0.41,
+    0.4,
+    1
+   ],
+   "metallic": 0,
+   "roughness": 0.9
+  },
+  "prop_parchment": {
+   "base": [
+    0.6,
+    0.53,
+    0.39,
+    1
+   ],
+   "metallic": 0,
+   "roughness": 0.82
+  },
+  "prop_iron": {
+   "base": [
+    0.29,
+    0.3,
+    0.35,
+    1
+   ],
+   "metallic": 0.55,
+   "roughness": 0.45
+  },
+  "prop_charred": {
+   "base": [
+    0.1,
+    0.085,
+    0.075,
+    1
+   ],
+   "metallic": 0,
+   "roughness": 0.88
+  },
+  "prop_flame": {
+   "base": [
+    0,
+    0,
+    0,
+    1
+   ],
+   "metallic": 1.0,
+   "roughness": 1.0
+  },
+  "prop_wood": {
+   "base": [
+    0.32,
+    0.2,
+    0.11,
+    1
+   ],
+   "metallic": 0,
+   "roughness": 0.78
+  },
+  "prop_bone": {
+   "base": [
+    0.74,
+    0.7,
+    0.58,
+    1
+   ],
+   "metallic": 0,
+   "roughness": 0.62
+  },
+  "stone_wall": {
+   "base": null,
+   "metallic": 1.0,
+   "roughness": 1.0
+  }
+ },
+ "blend_saved": 13120063
+}

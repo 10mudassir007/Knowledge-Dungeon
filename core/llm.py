@@ -1,73 +1,113 @@
-from langchain_groq import ChatGroq
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_community.chat_models import ChatZhipuAI
+"""LLM provider selection, env loading, timeouts and retries.
+
+Every model call in the project goes through `invoke_agent`, which applies a
+15-second timeout (set on the client itself) plus one retry with exponential
+backoff, and converts any provider failure into `ProviderUnavailable` so the
+API can answer 503 instead of leaking a traceback.
+"""
+
 import os
+import time
 from functools import lru_cache
+from pathlib import Path
+
 from dotenv import load_dotenv
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
+from langchain_community.chat_models import ChatZhipuAI
 from pydantic import SecretStr
-import warnings
 
-warnings.filterwarnings("ignore")   
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-load_dotenv()
+# Load only this project's .env. A bare load_dotenv() walks up parent
+# directories and would silently pick up an unrelated project's keys.
+load_dotenv(PROJECT_ROOT / ".env")
 
-def _require_env(var_name: str) -> str:
-    value = os.getenv(var_name)
-    if not value:
-        raise RuntimeError(f"{var_name} not found")
-    return value
+REQUEST_TIMEOUT_SECONDS = 15
+MAX_ATTEMPTS = 2
+BACKOFF_BASE_SECONDS = 0.5
+
+# Models per provider, kept in one place so /health and the clients agree.
+MODELS = {
+    "groq": "openai/gpt-oss-120b",
+    "glm": "glm-4.7-flash",
+    "gemini": "gemini-3-flash-preview",
+}
+
+SUPPORTED_PROVIDERS = tuple(MODELS)
+
+
+class ProviderUnavailable(RuntimeError):
+    """The model provider failed or is not configured. Maps to HTTP 503."""
+
+
+class ProviderNotConfigured(ProviderUnavailable):
+    """A required API key is missing. Maps to HTTP 503."""
+
+
+def _require_env(*var_names: str) -> str:
+    """Return the first non-empty value among `var_names`."""
+    for name in var_names:
+        value = os.getenv(name)
+        if value:
+            return value
+    raise ProviderNotConfigured(f"{' or '.join(var_names)} not set")
 
 
 def get_default_provider() -> str:
-    """Return default LLM provider name.
-
-    Centralizes provider selection so all agents/API/CLI use the same model.
-    """
-    return os.getenv("LLM_PROVIDER", "groq")
+    """Return the configured provider name (default "groq")."""
+    provider = (os.getenv("LLM_PROVIDER") or "groq").strip().lower()
+    if provider not in MODELS:
+        raise ProviderNotConfigured(f"Unknown LLM_PROVIDER {provider!r}; expected one of {', '.join(SUPPORTED_PROVIDERS)}")
+    return provider
 
 
 @lru_cache(maxsize=8)
 def _get_llm_cached(provider: str):
     """Create and cache an LLM client for a given provider."""
     if provider == "groq":
-        groq_api_key = _require_env("GROQ_API_KEY")
         return ChatGroq(
-            model="openai/gpt-oss-120b",
-            api_key=SecretStr(groq_api_key),
+            model=MODELS["groq"],
+            api_key=SecretStr(_require_env("GROQ_API_KEY")),
+            timeout=REQUEST_TIMEOUT_SECONDS,
+            max_retries=0,  # retries are handled by invoke_agent
         )
     if provider == "glm":
-        glm_api_key = _require_env("GLM_API_KEY")
         return ChatZhipuAI(
-            model="glm-4.7-flash",
-            api_key=glm_api_key,
+            model=MODELS["glm"],
+            api_key=_require_env("GLM_API_KEY"),
+            request_timeout=REQUEST_TIMEOUT_SECONDS,
         )
     if provider == "gemini":
-        google_api_key = _require_env("GOOGLE_API_KEY")
         return ChatGoogleGenerativeAI(
-            model="gemini-3-flash-preview",
-            api_key=google_api_key,
-            response_format="text",
+            model=MODELS["gemini"],
+            api_key=_require_env("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+            request_timeout=REQUEST_TIMEOUT_SECONDS,
         )
 
-    raise ValueError(f"Unknown provider: {provider}")
+    raise ProviderNotConfigured(f"Unknown provider: {provider}")
 
 
-def get_llm(provider=None):
-    """Return a shared LLM client.
+def get_llm(provider: str | None = None):
+    """Return a shared LLM client, honouring the LLM_PROVIDER env var."""
+    return _get_llm_cached(provider or get_default_provider())
 
-    If provider is omitted, uses the `LLM_PROVIDER` env var (default: "groq").
-    Instances are cached so repeated calls reuse the same client.
+
+def invoke_agent(agent, payload, *, attempts: int = MAX_ATTEMPTS):
+    """Invoke a LangChain agent with timeout + exponential-backoff retry.
+
+    Raises ProviderUnavailable once every attempt has failed.
     """
-    provider = provider or get_default_provider()
-    return _get_llm_cached(provider)
+    last_error: Exception | None = None
 
-def get_glm_llm():
-    return get_llm("glm")
+    for attempt in range(attempts):
+        if attempt:
+            time.sleep(BACKOFF_BASE_SECONDS * (2 ** (attempt - 1)))
+        try:
+            return agent.invoke(payload)
+        except Exception as exc:  # noqa: BLE001 - re-raised as ProviderUnavailable
+            last_error = exc
 
-def get_gemini_llm():
-    return get_llm("gemini")
-
-if __name__ == "__main__":
-    llm = get_gemini_llm()
-    response = llm.invoke("What is the capital of France? Reply as JSON: {\"capital\": \"...\"} only.")
-    print(response)
+    raise ProviderUnavailable(
+        f"LLM provider '{get_default_provider()}' failed after {attempts} attempts"
+    ) from last_error

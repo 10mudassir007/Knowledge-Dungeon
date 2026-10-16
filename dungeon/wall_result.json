@@ -1,0 +1,153 @@
+{
+ "wall_cells": 611,
+ "verts": 7712,
+ "faces": 4528,
+ "tris": 9056,
+ "material": "stone_wall",
+ "material_shared_with": [],
+ "image_format": "WEBP",
+ "checks": {
+  "mesh_named_Walls": true,
+  "bsdf_linked": true,
+  "n_nodes": 7,
+  "n_links": 7,
+  "glb_has_textures": true
+ },
+ "glb": {
+  "bytes": 1169996,
+  "nodes": 101,
+  "meshes": [
+   "Altar_Block",
+   "AltarCrystal",
+   "Ceiling",
+   "Enemy_1_3_Mesh",
+   "Enemy_1_15_Mesh",
+   "Enemy_5_9_Mesh",
+   "Enemy_5_23_Mesh",
+   "Enemy_10_3_Mesh",
+   "Floor",
+   "Hint_Lectern_Mesh",
+   "Hint_Lectern_Top",
+   "Brazier_1",
+   "Flame_1",
+   "Brazier_2",
+   "Flame_2",
+   "Brazier_3",
+   "Flame_3",
+   "Orc_Hide",
+   "Weapon_Axe",
+   "Weapon_Halberd",
+   "Weapon_Mace",
+   "Weapon_Spear",
+   "Weapon_Sword",
+   "Weapon_Warhammer",
+   "Prop_Barrel",
+   "Prop_Barrel_4",
+   "Prop_Crate",
+   "Prop_Crate_2",
+   "Prop_Crate_5",
+   "TorchFlame_1_10",
+   "TorchMesh_1_10",
+   "TorchFlame_1_26",
+   "TorchMesh_1_26",
+   "TorchFlame_6_1",
+   "TorchMesh_6_1",
+   "TorchFlame_8_16",
+   "TorchMesh_8_16",
+   "TorchFlame_10_26",
+   "TorchMesh_10_26",
+   "TorchFlame_14_8",
+   "TorchMesh_14_8",
+   "TorchFlame_16_16",
+   "TorchMesh_16_16",
+   "TorchFlame_18_2",
+   "TorchMesh_18_2",
+   "TorchFlame_30_4",
+   "TorchMesh_30_4",
+   "TorchFlame_30_18",
+   "TorchMesh_30_18",
+   "TorchFlame_36_20",
+   "TorchMesh_36_20",
+   "TorchFlame_38_6",
+   "TorchMesh_38_6",
+   "Walls"
+  ],
+  "materials": [
+   "stone_wall_props",
+   "emissive_crystal",
+   "ceiling_stone",
+   "bone",
+   "stone_floor",
+   "wood",
+   "metal",
+   "emissive_flame",
+   "orc_skin",
+   "bone",
+   "metal",
+   "wood",
+   "stone_wall"
+  ],
+  "stone_wall_pbr": {
+   "baseColorTexture": true,
+   "metallicRoughnessTexture": true,
+   "normalTexture": true,
+   "baseColorFactor": null
+  },
+  "images": [
+   [
+    "ceiling_stone_normal",
+    "image/webp"
+   ],
+   [
+    "ceiling_stone_basecolor",
+    "image/webp"
+   ],
+   [
+    "bone_basecolor",
+    "image/webp"
+   ],
+   [
+    "stone_floor_normal",
+    "image/webp"
+   ],
+   [
+    "stone_floor_basecolor",
+    "image/webp"
+   ],
+   [
+    "wood_normal",
+    "image/webp"
+   ],
+   [
+    "wood_basecolor",
+    "image/webp"
+   ],
+   [
+    "metal_normal",
+    "image/webp"
+   ],
+   [
+    "metal_basecolor",
+    "image/webp"
+   ],
+   [
+    "wall_normal",
+    "image/webp"
+   ],
+   [
+    "wall_basecolor",
+    "image/webp"
+   ],
+   [
+    "wall_orm",
+    "image/webp"
+   ]
+  ]
+ },
+ "texture_files": [
+  2386195,
+  5791781,
+  875087,
+  858809
+ ]
+}

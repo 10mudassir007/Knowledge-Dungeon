@@ -1,60 +1,47 @@
-from langchain.tools import tool
-from langchain_tavily import TavilySearch
+"""Optional web-search tool for the question agent.
+
+Search is a nice-to-have: if no key is configured (or Tavily is unreachable)
+`get_search_tool` returns None and the question agent falls back to the model's
+own knowledge. Scoring tools used to live here and mutated a module-level
+`game_state`; scoring is now pure and lives in `core/rules.py`.
+"""
+
+import logging
 import os
 
-# Track state and tool-call guards to prevent double-scoring.
-game_state = {"points": 0, "lives": 3}
-_last_score_token = None
-_last_life_token = None
+from langchain_tavily import TavilySearch
+
+logger = logging.getLogger(__name__)
 
 
-def _make_token(*parts) -> str:
-  return "|".join(str(p) for p in parts if p is not None)
+def is_search_configured() -> bool:
+    """True when a Tavily key is present. Never exposes the key itself."""
+    return bool(os.getenv("TAVILY_API_KEY"))
 
 
-@tool
-def increase_points(token: str = ""):
-  """Increase points by 10.
-
-  Pass a unique `token` per question (e.g., question text or session_id+question).
-  If the tool is called multiple times with the same token, points are only
-  increased once.
-  """
-  global _last_score_token
-  if token and token == _last_score_token:
-    return game_state["points"]
-
-  game_state["points"] += 10
-  _last_score_token = token or _last_score_token
-  return game_state["points"]
-
-
-@tool
-def decrease_lives(token: str = ""):
-  """Decrease lives by 1.
-
-  Pass a unique `token` per question.
-  If called multiple times with the same token, lives are only decreased once.
-  """
-  global _last_life_token
-  if token and token == _last_life_token:
-    return game_state["lives"]
-
-  if game_state["lives"] > 0:
-    game_state["lives"] -= 1
-  _last_life_token = token or _last_life_token
-  return game_state["lives"]
+def warn_if_search_unconfigured() -> None:
+    """Log a single startup warning when search is unavailable."""
+    if not is_search_configured():
+        logger.warning(
+            "TAVILY_API_KEY is not set - question generation will use the model's own knowledge."
+        )
 
 
 def get_search_tool():
-  """
-  Lazily create Tavily search tool only when needed.
-  Prevents env/key errors when running agents that don't use search.
-  """
-  if not os.getenv("TAVILY_API_KEY"):
-    raise RuntimeError("TAVILY_API_KEY not set, but search tool was requested.")
-  return TavilySearch(
-      max_results=5,
-      topic="general",
-      include_images=False,
-  )
+    """Return a Tavily tool, or None when search is unavailable.
+
+    Returning None (instead of raising) lets the question agent run in a
+    degraded-but-working mode.
+    """
+    if not is_search_configured():
+        return None
+
+    try:
+        return TavilySearch(
+            max_results=5,
+            topic="general",
+            include_images=False,
+        )
+    except Exception as exc:  # noqa: BLE001 - search must never break the game
+        logger.warning("Search tool unavailable (%s); continuing without search.", exc)
+        return None

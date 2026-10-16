@@ -194,6 +194,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-data/
+data/*
+!data/.gitkeep
 
 quest-master
+opencode.json
+
+Orcs
