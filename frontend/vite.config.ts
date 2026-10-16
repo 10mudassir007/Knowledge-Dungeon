@@ -3,6 +3,10 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    // Vercel static-build expects the output directory at the repo root.
+    outDir: "../dist",
+  },
   server: {
     port: 5173,
     proxy: {
