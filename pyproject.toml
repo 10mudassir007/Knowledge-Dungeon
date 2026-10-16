@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "knowledge-dungeon"
+version = "0.1.0"
+description = "Python/FastAPI quiz backend + React Three Fiber dungeon client"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+  { name = "Knowledge Dungeon" },
+]
+dependencies = [
+  "fastapi==0.129.0",
+  "uvicorn[standard]==0.40.0",
+  "pydantic==2.14.1",
+  "python-dotenv==1.2.1",
+  "langchain==1.4.6",
+  "langchain-groq==1.1.2",
+  "langchain-community==0.4.1",
+  "langchain-google-genai==4.2.0",
+  "langchain-tavily==0.2.17",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==8.3.3",
+  "pytest-asyncio==0.24.0",
+]
+
+[project.scripts]
+knowledge-dungeon = "main:app"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["."]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "C4", "UP", "P", "DTZ", "TRY", "RET", "RUF"]
+ignore = ["E501", "B008", "UP007", "UP006", "TRY003", "TRY300", "TRY301"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["agents", "core", "main"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
