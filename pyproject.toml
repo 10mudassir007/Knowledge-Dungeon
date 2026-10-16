@@ -32,6 +32,12 @@ dev = [
 [project.scripts]
 knowledge-dungeon = "main:app"
 
+[tool.setuptools.packages.find]
+include = ["agents*", "core*", "dungeon*", "data*", "sfx*"]
+
+[tool.setuptools.py-modules]
+include = ["main"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
