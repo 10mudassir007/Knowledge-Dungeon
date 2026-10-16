@@ -1,0 +1,14 @@
+# Knowledge Dungeon - SEO / crawler guidance
+
+User-agent: *
+Allow: /
+
+# Disallow API endpoints (not page content, prevent crawling of session state)
+Disallow: /api/
+
+# Allow static game assets
+Allow: /assets/
+Allow: /audio/
+
+# Sitemap location
+Sitemap: https://your-domain.vercel.app/sitemap.xml

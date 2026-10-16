@@ -5,21 +5,89 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="theme-color" content="#0c0716" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
     <meta
       name="description"
-      content="Knowledge Dungeon - answer an orc's riddle, keep your health, and reach the altar."
+      content="Knowledge Dungeon - a browser dungeon crawler where progress is earned by answering trivia riddles. Explore a 3D stone labyrinth, face orcs, solve questions, and reach the altar."
     />
-    <!-- Themed faces: Cinzel for carved titles, EB Garamond for body copy.
-         Both degrade to local serifs if the network is unavailable. -->
+    <meta name="keywords" content="Knowledge Dungeon, trivia game, dungeon crawler, riddle game, browser game, three.js, quiz game" />
+    <link rel="canonical" href="https://your-domain.vercel.app/" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://your-domain.vercel.app/" />
+    <meta property="og:title" content="Knowledge Dungeon" />
+    <meta property="og:description" content="A browser dungeon crawler where progress is earned by answering trivia riddles. Explore a 3D labyrinth, face orcs, solve questions, and reach the altar." />
+    <meta property="og:image" content="/assets/dungeon-glb.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:site_name" content="Knowledge Dungeon" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://your-domain.vercel.app/" />
+    <meta name="twitter:title" content="Knowledge Dungeon" />
+    <meta name="twitter:description" content="A browser dungeon crawler where progress is earned by answering trivia riddles." />
+    <meta name="twitter:image" content="/assets/dungeon-glb.png" />
+
+    <!-- Themed faces: Cinzel for carved titles, EB Garamond for body copy. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap"
       rel="stylesheet"
     />
-    <title>Knowledge Dungeon</title>
+    <title>Knowledge Dungeon — Answer Riddles, Survive the Orcs</title>
+
+    <!-- JSON-LD structured data for search engines and LLM crawlers -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Game",
+        "name": "Knowledge Dungeon",
+        "url": "https://your-domain.vercel.app/",
+        "description": "A browser-based 3D dungeon crawler where players explore a stone labyrinth and answer trivia riddles posed by orcs to advance. Built with React, Three.js, and FastAPI.",
+        "applicationCategory": "Game",
+        "genre": ["trivia", "dungeon crawler", "quiz", "adventure"],
+        "platform": "Web Browser",
+        "operatingSystem": "any",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD",
+          "availability": "https://schema.org/InStock",
+          "url": "https://your-domain.vercel.app/"
+        },
+        "author": {
+          "@type": "Organization",
+          "name": "Knowledge Dungeon"
+        },
+        "isFamilyFriendly": true,
+        "accessibilityFeature": ["keyboardNavigation", "highContrastDisplay"],
+        "accessibilityHazard": ["noFlashingHazards"],
+        "inLanguage": "en-US"
+      }
+    </script>
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Knowledge Dungeon",
+        "url": "https://your-domain.vercel.app/",
+        "applicationCategory": "Game",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "browserRequirements": "WebGL 2",
+        "inLanguage": "en-US"
+      }
+    </script>
   </head>
   <body>
+    <noscript><a href="https://your-domain.vercel.app/">View Knowledge Dungeon</a></noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
