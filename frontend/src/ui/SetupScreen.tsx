@@ -8,6 +8,7 @@ const TOPIC_PRESETS = [
   { id: "history", label: "Ancient history", value: "ancient history" },
   { id: "nature", label: "Animals & nature", value: "animals and nature" },
   { id: "science", label: "Science & inventions", value: "science and inventions" },
+  { id: "tech", label: "Technology & AI", value: "technology and artificial intelligence" },
   { id: "games", label: "Video games", value: "video games" },
 ];
 

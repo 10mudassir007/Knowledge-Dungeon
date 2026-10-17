@@ -39,6 +39,13 @@ describe("SetupScreen", () => {
     expect(topicInput().value).toBe("space and astronomy");
   });
 
+  it("offers a technology and AI preset", async () => {
+    const user = userEvent.setup();
+    open();
+    await user.click(screen.getByTestId("topic-preset-tech"));
+    expect(topicInput().value).toBe("technology and artificial intelligence");
+  });
+
   it("hands name, difficulty and topic to the dungeon", async () => {
     const user = userEvent.setup();
     const onBegin = open();
