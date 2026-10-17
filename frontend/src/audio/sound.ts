@@ -125,10 +125,18 @@ function ensureContext(): AudioContext {
   return ctx;
 }
 
-/** Call from a user gesture (the Enter click). */
-export function unlock(): void {
+/** Call from a user gesture (the Enter click). Resolves once the context runs. */
+export async function unlock(): Promise<void> {
   const c = ensureContext();
-  if (c.state === "suspended") void c.resume();
+  if (c.state === "suspended") {
+    // resume() settles on a later task; callers that sequence clips must wait
+    // for it, or the first playSample sees "suspended" and drops the clip.
+    try {
+      await c.resume();
+    } catch {
+      /* autoplay refused - samples stay silent until the next gesture */
+    }
+  }
   if (!started) {
     started = true;
     startMusic();
@@ -375,7 +383,21 @@ export async function playSample(name: Sample, gain = 1): Promise<void> {
   const buf = await loadSample(name);
   if (!buf || muted) return;
   const c = ensureContext();
-  if (c.state === "suspended") return;
+  if (c.state === "suspended") {
+    // The Enter click's unlock() is usually still settling here: resume()
+    // resolves on a later task, and a pre-decoded clip resolves this function
+    // past that point within a microtask. Bailing out on "suspended" instead
+    // of waiting is what silently swallowed the welcome speech; wait for the
+    // in-flight resume (or run one) rather than drop the clip.
+    try {
+      await c.resume();
+    } catch {
+      return;
+    }
+    // Re-read: the resume above may still have failed silently.
+    const resumed = c.state as AudioContextState;
+    if (resumed !== "running") return;
+  }
 
   const g = c.createGain();
   g.gain.value = gain;

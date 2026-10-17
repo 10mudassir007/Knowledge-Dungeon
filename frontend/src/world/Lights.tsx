@@ -169,8 +169,12 @@ function TorchLight({
  * Point-light shadows are cube maps - six depth renders per light per frame.
  * Casting from a fixed set of torches far away is money burned on nothing the
  * player can observe, so every half second the director picks the nearest
- * `shadowCasters` torches and switches those on. The choice only changes when
- * the *set* changes, so an equidistant pair never flickers.
+ * `shadowCasters` torches and switches those on.
+ *
+ * Once the set is full a swap has to be a *clear* upgrade - the newcomer at
+ * least a quarter closer than the member it displaces - because a swap pops
+ * one torch's shadows in and another's out, and walking past the point where
+ * two torches are equidistant would otherwise re-roll the set every tick.
  */
 function ShadowDirector({
   lights,
@@ -222,17 +226,42 @@ function ShadowDirector({
       wanted.every((v, idx) => v === active.current[idx]);
     if (same) return;
 
-    for (const i of active.current) {
-      if (!wanted.includes(i)) {
-        const l = lights.current[i];
-        if (l) l.castShadow = false;
+    // First fill, or the budget changed: take the nearest set as it comes.
+    if (active.current.length !== budget) {
+      for (const i of active.current) {
+        if (!wanted.includes(i)) {
+          const l = lights.current[i];
+          if (l) l.castShadow = false;
+        }
       }
+      for (const i of wanted) {
+        const l = lights.current[i];
+        if (l) l.castShadow = true;
+      }
+      active.current = wanted;
+      return;
     }
-    for (const i of wanted) {
-      const l = lights.current[i];
-      if (l) l.castShadow = true;
-    }
-    active.current = wanted;
+
+    // Steady state: one-for-one, and only for a clearly closer torch. A light
+    // that vanished from the ranking counts as infinitely far and is dropped.
+    const distByIndex = new Map(ranked.map((r) => [r.i, r.d]));
+    const incoming = ranked.filter((r) => !active.current.includes(r.i));
+    const outgoing = active.current
+      .map((i) => ({ i, d: distByIndex.get(i) ?? Infinity }))
+      .sort((a, b) => b.d - a.d);
+    if (incoming.length === 0 || outgoing.length === 0) return;
+    if (incoming[0].d >= outgoing[0].d * 0.75) return;
+
+    const drop = outgoing[0].i;
+    const add = incoming[0].i;
+    const dropped = lights.current[drop];
+    if (dropped) dropped.castShadow = false;
+    const added = lights.current[add];
+    if (added) added.castShadow = true;
+    active.current = active.current
+      .filter((i) => i !== drop)
+      .concat(add)
+      .sort((a, b) => a - b);
   });
 
   return null;

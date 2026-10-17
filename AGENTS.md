@@ -98,14 +98,19 @@ blender --background dungeon/dungeon.blend --python dungeon/build_orc.py     # o
 ## Lighting, shadows and occlusion
 
 - Moving occlusion is almost always one of three things, in order of likelihood:
-  1. N8AO running with `enableNormalPass={false}` — it has to guess normals and the result
-     slides as the camera moves. Always pass the normal pass when AO is on.
+  1. N8AO guessing normals from depth — it crawls as the camera moves. `App.tsx` renders a
+     world-space normal buffer and `patchAONormals` makes the AO shader consume it. A plain
+     uniform assignment is silently a no-op: the pass resets `sceneNormal` to null every
+     render, and the full-res shader only reads it under `#ifdef HALFRES`. Skinned meshes are
+     hidden from that pass (bind-pose silhouettes); their pixels fall back to depth normals.
   2. A shadow-casting light with no `normalBias` — the depth comparison crawls across surfaces.
   3. AO stacked on top of the baked vertex AO in `COLOR_0`. The bake is the base layer; keep
      screen AO tight (radius ~0.5) and gentle.
 - Walls must `castShadow`. Otherwise torch light leaks through stone and the level reads as one
   bright blob. Point-light shadows are cube maps, so cap `shadowCasters` (2/4/6 per tier) and
-  measure before raising it.
+  measure before raising it. `ShadowDirector` gates set swaps with hysteresis (a newcomer must
+  be 25% closer) — a swap pops one torch's shadows in and another's out, and plain
+  nearest-N re-rolls the set every tick as the player crosses equidistant points.
 - Tiers drive independent axes in `game/graphics.ts` — render scale, AA, shadow type/size/casters/
   bias, AO radius/intensity/resolution, fog density (draw distance), anisotropy, torch count.
   Changing a field means touching `Effects`, `Lights`, `Orc`, `Puddles` and `App` together.

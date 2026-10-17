@@ -111,6 +111,53 @@ class GLBErrorBoundary extends Component<{ children: ReactNode }, { error: strin
   }
 }
 
+/**
+ * Make N8AO consume a real normal buffer.
+ *
+ * The AO shader only reads `sceneNormal` when HALFRES is defined, and with
+ * halfRes off the pass resets the uniform to null on every render - so a
+ * texture assigned from the outside never survives to the draw. Retarget both
+ * branches at the injected texture, with a fallback to the depth-derived
+ * normal wherever the buffer has no sample (its clear colour - pixels the
+ * skinned meshes left empty), and redefine `sceneNormal` as an accessor so
+ * the pass's per-frame null write lands nowhere.
+ */
+function patchAONormals(material: THREE.ShaderMaterial, texture: THREE.Texture): void {
+  const fallback = [
+    "vec3 kdNormal = texture2D(sceneNormal, vUv).rgb;",
+    "      vec3 normal = dot(kdNormal, kdNormal) > 0.25",
+    "        ? normalize(kdNormal)",
+    "        : computeNormal(worldPos, vUv);",
+  ].join("\n");
+  const branches = [
+    "vec3 normal = texture2D(sceneNormal, vUv).rgb;", // half-res compile
+    "vec3 normal = computeNormal(worldPos, vUv);", // full-res compile
+  ];
+  let patched = false;
+  for (const from of branches) {
+    if (material.fragmentShader.includes(from)) {
+      material.fragmentShader = material.fragmentShader.replace(from, fallback);
+      patched = true;
+    }
+  }
+  if (patched) material.needsUpdate = true;
+  const uniforms = material.uniforms;
+  if (Object.getOwnPropertyDescriptor(uniforms, "sceneNormal")?.get) return;
+  const shim = {
+    get value() {
+      return texture;
+    },
+    set value(_next: unknown) {
+      /* the pass nulls this every frame; the injected buffer stays */
+    },
+  };
+  Object.defineProperty(uniforms, "sceneNormal", {
+    configurable: true,
+    get: () => shim,
+    set: () => {},
+  });
+}
+
 function Effects({ reduced, quality }: { reduced: boolean; quality: QualityTier }) {
   // Fringing is easily overdone: full 0.0009 painted rainbow edges on every
   // bloomed torch flame, which reads as a defect rather than a lens. Half keeps
@@ -125,21 +172,20 @@ function Effects({ reduced, quality }: { reduced: boolean; quality: QualityTier 
   // EffectComposer only accepts element children, so the disabled passes are
   // filtered out of an array rather than left as `false` in the JSX.
   const effects: JSX.Element[] = [];
-  // Filled once the N8AO effect mounts: its render method is wrapped so the
-  // sceneNormal uniform always points at our normal target (see below).
+  // Filled by the N8AO effect; the normals section below uses the pass to
+  // wire in the injected normal buffer.
   const n8aoRef = useRef<any>(null);
     if (q.ao) {
       // Contact darkening on top of the AO baked into the meshes' vertex colours:
       // this catches the small, moving stuff the bake cannot. Kept tight and
       // gentle - a wide, strong SSAO pass on top of baked AO is what makes
       // occlusion look like it slides across the stone as you move.
-      // postprocessing 2.16.3's N8AO only consumes real normals from its
-      // half-res depth-downsample pass (N8AOPostPass reads texture[1]); at
-      // full resolution sceneNormal stays null and N8AO rebuilds normals from
-      // depth with texel fetches, which makes the occlusion crawl across
-      // surfaces as the camera moves. renderNormalTarget below feeds N8AO a
-      // full-resolution world-normal buffer so the AO stays locked to the
-      // geometry instead of swimming.
+      // N8AO rebuilds normals from the depth buffer with texel fetches unless
+      // it is given a real normal buffer, and those guesses are what makes its
+      // occlusion crawl as the camera moves. The normals section below renders
+      // a full-resolution world-space buffer and patchAONormals forces the AO
+      // pass to consume it - without that patch the buffer is a no-op: the
+      // pass resets sceneNormal to null on every render at full resolution.
       effects.push(
         <N8AO
           ref={n8aoRef}
@@ -196,19 +242,16 @@ function Effects({ reduced, quality }: { reduced: boolean; quality: QualityTier 
 
   // ------------------------------------------------------------------ normals --
 
-  // World-space normal render target fed to N8AO every frame. The library's
-  // N8AO only consumes real normals from its half-res depth-downsample pass
-  // (texture[1] of DepthDownSample); at full resolution sceneNormal stays
-  // null and N8AO rebuilds normals from depth with texel fetches, which makes
-  // occlusion crawl across surfaces as the camera moves. We render our own
-  // full-resolution normal buffer and re-inject it into N8AO's render pass
-  // after the effect mounts (its render resets the uniform to null).
+  // World-space normal render target fed to N8AO every frame. A depth buffer
+  // is required: without one the traversal order decides which surface writes
+  // a texel, so geometry behind a wall could stamp its normal onto the wall's
+  // pixels. With it, the visible surface wins, matching the depth the AO pass
+  // reads world positions from.
   const normalTarget = useMemo(() => {
     const rt = new THREE.WebGLRenderTarget(1, 1, {
       type: THREE.HalfFloatType,
       minFilter: THREE.NearestFilter,
       magFilter: THREE.NearestFilter,
-      depthBuffer: false,
       stencilBuffer: false,
     });
     rt.texture.name = "kdNormalTarget";
@@ -221,7 +264,8 @@ function Effects({ reduced, quality }: { reduced: boolean; quality: QualityTier 
         vertexShader: [
           "varying vec3 vWorldNormal;",
           "void main() {",
-          "  vWorldNormal = normalize(normalMatrix * normal);",
+          // World space, matching the space the AO shader derives from depth.
+          "  vWorldNormal = normalize(mat3(modelMatrix) * normal);",
           "  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);",
           "}",
         ].join("\n"),
@@ -238,43 +282,46 @@ function Effects({ reduced, quality }: { reduced: boolean; quality: QualityTier 
   const tempSize = useRef(new THREE.Vector2());
   const { gl, scene, camera } = useThree();
 
+  // The patch is keyed on the material object: N8AO rebuilds the AO
+  // ShaderMaterial whenever its configuration changes (a quality switch), and
+  // both the shader patch and the uniform shim have to follow the new one.
+  const patchedMaterial = useRef<THREE.ShaderMaterial | null>(null);
+
   // Render world-space normals once per frame (no-op when AO is off).
   useFrame(() => {
-    if (!q.ao || !n8aoRef.current) return;
+    const pass = n8aoRef.current;
+    if (!q.ao || !pass) return;
     const size = tempSize.current;
     gl.getSize(size);
     if (size.x !== normalTarget.width || size.y !== normalTarget.height) {
       normalTarget.setSize(size.x, size.y);
     }
+    if (patchedMaterial.current !== pass.effectShaderQuad.material) {
+      patchedMaterial.current = pass.effectShaderQuad.material;
+      patchAONormals(pass.effectShaderQuad.material, normalTarget.texture);
+    }
+    // Skinned meshes would render in bind pose under the override material:
+    // normals for a silhouette that is not where the body is. Hide them for
+    // the pass; their pixels stay at the clear colour and the shader falls
+    // back to its depth-derived normal there.
+    const hidden: THREE.Object3D[] = [];
+    scene.traverse((o) => {
+      if ((o as THREE.SkinnedMesh).isSkinnedMesh && o.visible) hidden.push(o);
+    });
+    for (const o of hidden) o.visible = false;
     const override = scene.overrideMaterial;
     scene.overrideMaterial = normalMaterial;
     gl.setRenderTarget(normalTarget);
     gl.render(scene, camera);
     gl.setRenderTarget(null);
     scene.overrideMaterial = override;
+    for (const o of hidden) o.visible = true;
   });
 
-  useEffect(() => {
-    const pass = n8aoRef.current;
-    if (!pass || pass.__kdNormalInjected) return;
-    pass.__kdNormalInjected = true;
-    const base = pass.render.bind(pass);
-    pass.render = (
-      renderer: any,
-      inputBuffer: any,
-      outputBuffer: any,
-      delta: any,
-      active?: boolean,
-    ) => {
-      pass.effectShaderQuad.material.uniforms["sceneNormal"].value = normalTarget.texture;
-      return base(renderer, inputBuffer, outputBuffer, delta, active);
-    };
-  }, [n8aoRef]);
-
   return (
-    // enableNormalPass stays off: the built-in normal pass only covers the
-    // library's half-res path, and N8AO here is fed normals directly through
-    // renderNormalTarget instead.
+    // enableNormalPass stays off: the injected buffer above covers both AO
+    // paths, and the composer's own normal pass exists only for the library's
+    // half-res machinery, which the patch bypasses.
     <EffectComposer enableNormalPass={false} multisampling={quality === "ultra" ? 4 : 0}>
       {effects}
     </EffectComposer>
@@ -625,15 +672,21 @@ export default function App() {
   }, [veil]);
 
   // Entering the dungeon is a user gesture: this is where audio is allowed to
-  // start, and where we claim pointer lock so the player can look as the blur lifts.
+  // start, and where we claim pointer lock so the player can look as the blur
+  // lifts. The clips sequence behind unlock(): the context's resume() settles
+  // a task later, and playing before that was a race the welcome speech lost.
   const handleBegin = useCallback(
     (name: string, difficulty: Difficulty, topic: string) => {
-      unlock();
-      playSfx("click");
       lockPointer();
-      // The welcome clip owns the mix; the score fades back in after it ends,
-      // and the on-screen narration leaves with the clip.
-      void playWelcomeSequence().then(() => setIntroVisible(false));
+      void unlock()
+        .then(() => {
+          playSfx("click");
+          // The welcome clip owns the mix; the score fades back in after it
+          // ends, and the on-screen narration leaves with the clip.
+          return playWelcomeSequence();
+        })
+        .finally(() => setIntroVisible(false))
+        .catch(() => {});
       // Decode the combat clips while the veil is still up: otherwise the first
       // orc interaction stalls on a fetch + decode in mid-dialogue.
       void warmSamples();

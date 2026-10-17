@@ -5,7 +5,9 @@ import json
 import pytest
 
 import agents.answer as answer_module
+import agents.hint as hint_module
 from agents.answer import check_answer, judge_answer
+from agents.hint import clean_hint, get_hint
 from agents.question import QuestionDraft, QuestionGenerationError, generate_question
 from core.llm import ProviderUnavailable
 
@@ -192,3 +194,40 @@ def test_generate_question_only_sends_the_last_fifty_history_entries(monkeypatch
     sent = agent.payloads[0]["messages"]
     assert "Q0" not in sent
     assert "Q79" in sent
+
+
+# --- hints --------------------------------------------------------------------
+
+def _patch_hint_agent(monkeypatch, reply):
+    agent = FakeAgent([reply])
+    monkeypatch.setattr(hint_module, "get_llm", lambda *a, **k: object())
+    monkeypatch.setattr(hint_module, "create_agent", lambda **kwargs: agent)
+    return agent
+
+
+def test_hint_strips_the_label_the_model_prepends(monkeypatch):
+    _patch_hint_agent(
+        monkeypatch,
+        "*Data (Starfleet's android, ever-curious about machine learning)*: "
+        "Think back to how machines learn from examples.",
+    )
+    assert get_hint("Q?", "42", "space") == "Think back to how machines learn from examples."
+
+
+def test_hint_strips_bold_label_quotes_and_parenthesised_names():
+    assert clean_hint('**Gandalf (the Grey)**: "Follow the river."') == "Follow the river."
+    assert clean_hint("Data (an android): Count the moons.") == "Count the moons."
+    assert clean_hint("Hint: Seek the oldest stars.") == "Seek the oldest stars."
+
+
+def test_hint_unwraps_whole_text_emphasis_and_glyphs():
+    assert clean_hint("✨ *Consider the light.*") == "Consider the light."
+
+
+def test_hint_leaves_clean_text_alone():
+    assert clean_hint("Remember: rivers always run downhill.") == (
+        "Remember: rivers always run downhill."
+    )
+    assert clean_hint("The answer hides among the moons of Jupiter.") == (
+        "The answer hides among the moons of Jupiter."
+    )

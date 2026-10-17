@@ -29,7 +29,14 @@ QUESTION_AGENT_SYSTEM_PROMPT = (
 )
 
 
-HINT_AGENT_SYSTEM_PROMPT = "Output only what is asked nothing else no description"
+HINT_AGENT_SYSTEM_PROMPT = (
+    "You are a hint giver for a quiz game.\n"
+    "Reply with ONE short, in-character hint and nothing else.\n"
+    "Never reveal the answer.\n"
+    "Do not put a speaker label before the hint: no character name, no \"Name:\",\n"
+    "no parentheses around the character, no \"Hint:\" prefix.\n"
+    "No quotation marks, no markdown emphasis (no asterisks), no preamble or commentary."
+)
 
 
 ANSWER_CHECKER_SYSTEM_PROMPT = (
