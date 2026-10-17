@@ -30,28 +30,4 @@ class _NoApiPrefixMiddleware:
         await self.app(scope, receive, send)
 
 
-class _DebugPathMiddleware:
-    """TEMP: echo the ASGI path the function actually receives."""
-
-    def __init__(self, app):
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] == "http" and "__debug__" in scope.get("path", ""):
-            body = (
-                f"path={scope.get('path')!r} raw={scope.get('raw_path')!r} "
-                f"qs={scope.get('query_string')!r}"
-            ).encode()
-            await send(
-                {
-                    "type": "http.response.start",
-                    "status": 200,
-                    "headers": [(b"content-type", b"text/plain")],
-                }
-            )
-            await send({"type": "http.response.body", "body": body})
-            return
-        await self.app(scope, receive, send)
-
-
-handler = Mangum(_DebugPathMiddleware(_NoApiPrefixMiddleware(app)))
+handler = Mangum(_NoApiPrefixMiddleware(app))

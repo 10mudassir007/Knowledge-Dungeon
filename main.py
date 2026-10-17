@@ -195,6 +195,31 @@ def record_question(session: Session, draft, known_keys: set) -> bool:
 # -----------------------------
 app = FastAPI(title="Knowledge Dungeon API", lifespan=lifespan)
 
+
+class ApiPrefixStripMiddleware:
+    """Accept both ``/health`` and ``/api/health``.
+
+    The Vite dev server proxies ``/api/*`` to the backend with the prefix
+    stripped, while production (Vercel) forwards the full ``/api/*`` path.
+    Normalising here means the routes below match either way.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            path = scope.get("path", "")
+            if path == "/api" or path.startswith("/api/"):
+                scope["path"] = path[4:] or "/"
+                raw = scope.get("raw_path")
+                if isinstance(raw, bytes) and raw.startswith(b"/api"):
+                    scope["raw_path"] = raw[4:] or b"/"
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(ApiPrefixStripMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
