@@ -193,7 +193,18 @@ def record_question(session: Session, draft, known_keys: set) -> bool:
 # -----------------------------
 # App
 # -----------------------------
-app = FastAPI(title="Knowledge Dungeon API", lifespan=lifespan)
+# Interactive API docs are a development aid; keep them out of production.
+_IS_PRODUCTION = os.environ.get("VERCEL_ENV") == "production" or (
+    os.environ.get("ENVIRONMENT", "").strip().lower() == "production"
+)
+
+app = FastAPI(
+    title="Knowledge Dungeon API",
+    lifespan=lifespan,
+    docs_url=None if _IS_PRODUCTION else "/docs",
+    redoc_url=None if _IS_PRODUCTION else "/redoc",
+    openapi_url=None if _IS_PRODUCTION else "/openapi.json",
+)
 
 
 class ApiPrefixStripMiddleware:
