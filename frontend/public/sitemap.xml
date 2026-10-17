@@ -2,10 +2,10 @@
 <urlset xmlns="https://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:xhtml="https://www.w3.org/1999/xhtml">
   <url>
-    <loc>https://knowledge-dungeon-taupe.vercel.app/</loc>
+    <loc>https://knowledgedungeon.vercel.app/</loc>
     <lastmod>2026-10-16</lastmod>
     <changefreq>monthly</changefreq>
     <priority>1.0</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://knowledge-dungeon-taupe.vercel.app/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://knowledgedungeon.vercel.app/" />
   </url>
 </urlset>

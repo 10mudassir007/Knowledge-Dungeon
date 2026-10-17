@@ -5,7 +5,7 @@ A browser-based 3D dungeon crawler where progress is earned by answering trivia 
 - **Game type:** Trivia dungeon crawler / quiz adventure
 - **Platform:** Web browser (WebGL 2)
 - **Price:** Free
-- **URL:** https://knowledge-dungeon-taupe.vercel.app/
+- **URL:** https://knowledgedungeon.vercel.app/
 
 ## How to play
 

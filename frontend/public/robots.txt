@@ -11,4 +11,4 @@ Allow: /assets/
 Allow: /audio/
 
 # Sitemap location
-Sitemap: https://knowledge-dungeon-taupe.vercel.app/sitemap.xml
+Sitemap: https://knowledgedungeon.vercel.app/sitemap.xml
