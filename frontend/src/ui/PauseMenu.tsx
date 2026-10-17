@@ -15,6 +15,7 @@ import {
   type SystemProfile,
 } from "../game/graphics";
 import type { FpsSample } from "../game/FpsGuard";
+import { feedbackHref } from "./feedback";
 
 /** Single source of truth for the key list shown here and in the HUD hint. */
 export const SHORTCUTS: { keys: string; action: string }[] = [
@@ -171,6 +172,35 @@ export function PauseMenu({
               </div>
             ))}
           </dl>
+        </section>
+
+        <section className="pause-block">
+          <h3>Report a bug · Suggest a feature</h3>
+          <p className="settings-note">
+            Opens the project tracker on GitHub in a new tab, with this page's context attached.
+          </p>
+          <div className="feedback-row">
+            <a
+              className="quality-chip"
+              data-testid="report-bug"
+              href={feedbackHref("bug")}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <strong>Report a bug</strong>
+              <span>Something broke or reads wrong</span>
+            </a>
+            <a
+              className="quality-chip"
+              data-testid="suggest-feature"
+              href={feedbackHref("feature")}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <strong>Suggest a feature</strong>
+              <span>An idea for the dungeon</span>
+            </a>
+          </div>
         </section>
 
         <div className="pausemenu-actions">

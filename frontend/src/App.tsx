@@ -48,7 +48,13 @@ import { EnemyDialogue } from "./ui/EnemyDialogue";
 import { EndScreen } from "./ui/EndScreen";
 import { PauseMenu, WELCOME_TEXT } from "./ui/PauseMenu";
 import { BootScreen } from "./ui/BootScreen";
+import { HelpOverlay } from "./ui/HelpOverlay";
 import { SetupScreen } from "./ui/SetupScreen";
+
+/** The welcome card waits this long after the first step before leaving. */
+const WELCOME_DISMISS_MS = 3000;
+/** Keys that mean "the player is walking" for the welcome card. */
+const WALK_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD"]);
 
 /** Face east, down the row-1 corridor, rather than straight at the north wall. */
 
@@ -515,6 +521,8 @@ export default function App() {
   // plays, null once the dungeon is fully live.
   const [veil, setVeil] = useState<"blur" | "clear" | null>("blur");
   const [mapOpen, setMapOpen] = useState(false);
+  /** The lectern's how-to-play pages, opened with E. */
+  const [helpOpen, setHelpOpen] = useState(false);
   /** I: strip every overlay for a clean screenshot. */
   const [uiHidden, setUiHidden] = useState(false);
   /** F: FPS readout in the corner. */
@@ -543,7 +551,7 @@ export default function App() {
 
   // Everything outside active play is frozen: the setup tableau, loading,
   // dialogue, pause, and the death screen.
-  const frozen = state.phase !== "playing" || paused;
+  const frozen = state.phase !== "playing" || paused || helpOpen;
   const dead = state.phase === "over" && state.endReason === "lost";
 
   // Dev-only diagnostic handle (stripped from production builds), mirroring the
@@ -578,10 +586,17 @@ export default function App() {
   // replay when phase returns to "playing" after a question. Keyed on the session
   // so it fires exactly once per run.
   const introShown = useRef<string | null>(null);
+  /** Pending "the player has started walking" dismissal of the welcome card. */
+  const introWalkTimer = useRef<number | null>(null);
   useEffect(() => {
     if (state.phase !== "playing") return;
     if (state.sessionId && introShown.current === state.sessionId) return;
     if (state.sessionId) introShown.current = state.sessionId;
+    // A fresh run's card gets a fresh dismissal window.
+    if (introWalkTimer.current !== null) {
+      window.clearTimeout(introWalkTimer.current);
+      introWalkTimer.current = null;
+    }
     setIntroVisible(true);
     // Failsafe in case the welcome clip never loads.
     const id = window.setTimeout(() => setIntroVisible(false), 60000);
@@ -752,7 +767,7 @@ export default function App() {
   }, [frozen]);
 
   const interact = useCallback(async () => {
-    if (state.phase !== "playing" || paused) return;
+    if (state.phase !== "playing" || paused || helpOpen) return;
     const p = proximityRef.current;
     if (p.enemyId && p.enemyDistance <= AUTO_ENGAGE_RANGE) {
       // A deliberate re-engagement: clear the cooldown so E always works.
@@ -760,8 +775,13 @@ export default function App() {
       await engage(p.enemyId);
       return;
     }
-    if (p.lecternDistance <= LECTERN_RANGE) await requestHint();
-  }, [engage, paused, requestHint, state.phase]);
+    if (p.lecternDistance <= LECTERN_RANGE) {
+      // The lectern is the tutorial: E reads its pages rather than spending a
+      // hint. Hints belong to a duel and stay on the dialogue's own button.
+      setMapOpen(false);
+      setHelpOpen(true);
+    }
+  }, [engage, helpOpen, paused, state.phase]);
 
   // ---- the dungeon is not passive: orcs stalk, and fresh ones pour in -------
 
@@ -833,7 +853,26 @@ export default function App() {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
 
+      // The first step puts the welcome card on a three second clock. The
+      // narration clip keeps playing to its end; only the card goes.
+      if (
+        !e.repeat &&
+        introVisible &&
+        state.phase === "playing" &&
+        WALK_KEYS.has(e.code) &&
+        introWalkTimer.current === null
+      ) {
+        introWalkTimer.current = window.setTimeout(() => {
+          introWalkTimer.current = null;
+          setIntroVisible(false);
+        }, WELCOME_DISMISS_MS);
+      }
+
       if (e.code === "Escape") {
+        if (helpOpen) {
+          setHelpOpen(false);
+          return;
+        }
         if (mapOpen) {
           setMapOpen(false);
           return;
@@ -842,17 +881,20 @@ export default function App() {
         return;
       }
       if (e.code === "KeyM" && runActive) {
+        setHelpOpen(false);
         setMapOpen((v) => !v);
         return;
       }
       // P is the pause/settings menu. G used to open settings on its own; the
       // menu is now the single place with sound, graphics and the key list.
       if (e.code === "KeyP" && runActive) {
+        setHelpOpen(false);
         setMapOpen(false);
         setPaused((prev) => !prev);
         return;
       }
       if (e.code === "KeyG" && runActive) {
+        setHelpOpen(false);
         setMapOpen(false);
         setPaused((prev) => !prev);
         return;
@@ -870,7 +912,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [interact, mapOpen, paused, state.phase]);
+  }, [helpOpen, interact, introVisible, mapOpen, paused, state.phase]);
 
   // Release pointer lock whenever movement is locked.
   useEffect(() => {
@@ -1044,6 +1086,9 @@ export default function App() {
           reduced={reduced}
         />
       )}
+
+      {/* The lectern's pages. Opened with E at the lectern; Esc closes it. */}
+      {helpOpen && !showSetup && <HelpOverlay onClose={() => setHelpOpen(false)} />}
 
       {/* Death: the screen floods red as the camera hits the floor. */}
       {dead && <div className="death-overlay" data-testid="death-overlay" />}
