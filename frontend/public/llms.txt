@@ -11,17 +11,6 @@ A browser-based 3D dungeon crawler where progress is earned by answering trivia 
 
 Move with WASD, sprint with Shift, interact with `E`, open the map with `M`, pause with `P`. Answer each orc's riddle correctly to keep your health and advance through the dungeon levels toward the altar.
 
-## Site structure
-
-- `/` — Game entry point (single-page application)
-- `/api/game/start` — Start a new run (POST, JSON body: age, interest)
-- `/api/game/{session_id}/question` — Get the current riddle (GET)
-- `/api/game/{session_id}/answer-check` — Submit an answer (POST)
-- `/api/game/{session_id}/hint` — Get a hint for the active question (POST)
-- `/api/game/{session_id}/reveal` — Reveal the answer (POST)
-- `/api/game/{session_id}/state` — Get current game state (GET)
-- `/api/health` — Health check (GET)
-
 ## Notes for LLM crawlers
 
-This is a client-side React application. The visible UI is rendered in the browser. The game state and session data live on the backend API behind `/api/`. For indexing purposes, the canonical page is `/`.
+This is a client-side React application; the visible UI is rendered in the browser. For indexing purposes, the only canonical page is the game entry point at `/`.

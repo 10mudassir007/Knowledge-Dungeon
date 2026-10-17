@@ -193,17 +193,14 @@ def record_question(session: Session, draft, known_keys: set) -> bool:
 # -----------------------------
 # App
 # -----------------------------
-# Interactive API docs are a development aid; keep them out of production.
-_IS_PRODUCTION = os.environ.get("VERCEL_ENV") == "production" or (
-    os.environ.get("ENVIRONMENT", "").strip().lower() == "production"
-)
-
+# The interactive API docs and schema are never exposed. Only the game at "/"
+# is meant to be discoverable; the API and its docs stay private.
 app = FastAPI(
     title="Knowledge Dungeon API",
     lifespan=lifespan,
-    docs_url=None if _IS_PRODUCTION else "/docs",
-    redoc_url=None if _IS_PRODUCTION else "/redoc",
-    openapi_url=None if _IS_PRODUCTION else "/openapi.json",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
 
 
@@ -399,7 +396,9 @@ if FRONTEND_DIST.is_dir():
     @app.get("/{full_path:path}", include_in_schema=False)
     def spa(full_path: str):
         """Serve the built SPA, falling back to index.html for client routes."""
-        if full_path.startswith(("game", "health")):
+        # Reserved namespaces must never fall through to the SPA, or the API,
+        # docs and schema would surface as duplicate copies of the game page.
+        if full_path.startswith(("game", "health", "api", "docs", "redoc", "openapi")):
             raise HTTPException(status_code=404, detail="Not found")
         candidate = FRONTEND_DIST / full_path
         if full_path and candidate.is_file():

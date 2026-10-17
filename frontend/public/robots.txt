@@ -1,14 +1,7 @@
-# Knowledge Dungeon - SEO / crawler guidance
+# Knowledge Dungeon - crawler guidance
+# Only the game entry point is meant to appear in search results.
 
 User-agent: *
 Allow: /
 
-# Disallow API endpoints (not page content, prevent crawling of session state)
-Disallow: /api/
-
-# Allow static game assets
-Allow: /assets/
-Allow: /audio/
-
-# Sitemap location
 Sitemap: https://knowledgedungeon.vercel.app/sitemap.xml
