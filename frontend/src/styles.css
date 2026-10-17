@@ -146,7 +146,8 @@ button.primary:hover:not(:disabled) {
   position: fixed;
   inset: 0;
   display: grid;
-  place-content: center;
+  justify-content: center;
+  align-content: safe center;
   background:
     radial-gradient(ellipse 80% 60% at 50% 0%, rgba(124, 92, 255, 0.22), transparent 70%),
     radial-gradient(circle at 50% 45%, #1c1136 0%, #0a0614 70%, var(--ink) 100%);
@@ -156,7 +157,7 @@ button.primary:hover:not(:disabled) {
 }
 
 .setup-card {
-  width: min(560px, 94vw);
+  width: min(620px, 94vw);
   display: grid;
   gap: 1.25rem;
   padding: 2rem;
@@ -178,8 +179,9 @@ button.primary:hover:not(:disabled) {
   text-shadow: 0 0 30px rgba(124, 92, 255, 0.6), 0 2px 0 rgba(0, 0, 0, 0.6);
 }
 
-.setup-tag {
+.setup .setup-tag {
   margin: -0.8rem 0 0;
+  max-width: none;
   text-align: center;
   font-style: italic;
   color: var(--parchment-dim);
@@ -222,10 +224,12 @@ button.primary:hover:not(:disabled) {
   padding: 0;
   margin: 0;
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.5rem;
 }
 
 .difficulty legend {
+  grid-column: 1 / -1;
   font-size: 0.75rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -235,9 +239,10 @@ button.primary:hover:not(:disabled) {
 
 .difficulty-card {
   display: grid;
+  align-content: start;
   gap: 0.15rem;
-  text-align: left;
-  padding: 0.7rem 0.85rem;
+  text-align: center;
+  padding: 0.7rem 0.6rem;
   background: rgba(30, 22, 58, 0.55);
   border: 1px solid rgba(124, 92, 255, 0.25);
 }
@@ -257,6 +262,12 @@ button.primary:hover:not(:disabled) {
   border-color: var(--violet);
   background: rgba(74, 47, 168, 0.6);
   box-shadow: inset 0 0 24px rgba(124, 92, 255, 0.18);
+}
+
+@media (max-width: 560px) {
+  .difficulty {
+    grid-template-columns: 1fr;
+  }
 }
 
 .field label {

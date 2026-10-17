@@ -85,7 +85,7 @@ export function SetupScreen({
 
         <div className="field">
           <label>
-            <span>Topic for the riddles</span>
+            <span>Topic for the questions</span>
             <input
               data-testid="topic-input"
               value={topic}

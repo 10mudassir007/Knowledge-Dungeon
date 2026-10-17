@@ -1,6 +1,6 @@
 # Knowledge Dungeon
 
-A browser-based 3D dungeon crawler where progress is earned by answering trivia riddles posed by orcs. Explore a stone labyrinth, face orcs, solve questions, and reach the altar.
+A browser-based 3D dungeon crawler where progress is earned by answering trivia questions posed by orcs. Explore a stone labyrinth, face orcs, solve questions, and reach the altar.
 
 - **Game type:** Trivia dungeon crawler / quiz adventure
 - **Platform:** Web browser (WebGL 2)
@@ -9,7 +9,7 @@ A browser-based 3D dungeon crawler where progress is earned by answering trivia 
 
 ## How to play
 
-Move with WASD, sprint with Shift, interact with `E`, open the map with `M`, pause with `P`. Answer each orc's riddle correctly to keep your health and advance through the dungeon levels toward the altar.
+Move with WASD, sprint with Shift, interact with `E`, open the map with `M`, pause with `P`. Answer each orc's question correctly to keep your health and advance through the dungeon levels toward the altar.
 
 ## Notes for LLM crawlers
 
