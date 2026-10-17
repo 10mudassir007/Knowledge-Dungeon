@@ -259,6 +259,31 @@ button.primary:hover:not(:disabled) {
   box-shadow: inset 0 0 24px rgba(124, 92, 255, 0.18);
 }
 
+.field label {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.topic-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.topic-chip {
+  padding: 0.28rem 0.6rem;
+  font-size: 0.78rem;
+  color: var(--parchment-dim);
+  background: rgba(30, 22, 58, 0.55);
+  border: 1px solid rgba(124, 92, 255, 0.25);
+  border-radius: 999px;
+}
+
+.topic-chip:hover {
+  color: var(--parchment);
+  border-color: var(--violet);
+}
+
 .enter {
   justify-self: center;
   padding: 0.65rem 1.6rem;

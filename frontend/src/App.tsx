@@ -627,7 +627,7 @@ export default function App() {
   // Entering the dungeon is a user gesture: this is where audio is allowed to
   // start, and where we claim pointer lock so the player can look as the blur lifts.
   const handleBegin = useCallback(
-    (name: string, difficulty: Difficulty) => {
+    (name: string, difficulty: Difficulty, topic: string) => {
       unlock();
       playSfx("click");
       lockPointer();
@@ -637,7 +637,7 @@ export default function App() {
       // Decode the combat clips while the veil is still up: otherwise the first
       // orc interaction stalls on a fetch + decode in mid-dialogue.
       void warmSamples();
-      void begin(name, difficulty);
+      void begin(name, difficulty, topic);
     },
     [begin, lockPointer],
   );

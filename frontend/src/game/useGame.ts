@@ -33,7 +33,7 @@ export interface Difficulty {
   id: "squire" | "adept" | "legend";
   label: string;
   blurb: string;
-  /** Topic sent to the backend as `interest`. */
+  /** Default topic offered in the setup field; sent as `interest`. */
   interest: string;
   age: number;
   orcs: number;
@@ -41,8 +41,8 @@ export interface Difficulty {
 
 export const DIFFICULTIES: Difficulty[] = [
   { id: "squire", label: "Squire", blurb: "Common lore. Few orcs.", interest: "everyday legends and folk tales", age: 30, orcs: 4 },
-  { id: "adept", label: "Adept", blurb: "War history and empire.", interest: "ancient history and warring kingdoms", age: 30, orcs: 7 },
-  { id: "legend", label: "Legend", blurb: "Forbidden lore. The dungeon stirs.", interest: "arcane, cursed and forbidden lore", age: 30, orcs: 11 },
+  { id: "adept", label: "Adept", blurb: "A sterner trial, and more orcs.", interest: "ancient history and warring kingdoms", age: 30, orcs: 7 },
+  { id: "legend", label: "Legend", blurb: "To the deepest lore. The dungeon stirs.", interest: "arcane, cursed and forbidden lore", age: 30, orcs: 11 },
 ];
 
 export interface EnemyInstance {
@@ -474,12 +474,12 @@ export function useGame({ interest, age, orcCount }: UseGameOptions = {}) {
   const engagingRef = useRef(false);
 
   const startRun = useCallback(
-    async (seed?: number, override?: Difficulty) => {
+    async (seed?: number, override?: Difficulty, topic?: string) => {
       lingerTimers.current.forEach((id) => window.clearTimeout(id));
       lingerTimers.current = [];
 
       const diff = override ?? difficulty;
-      const useInterest = interest ?? diff?.interest ?? DIFFICULTIES[1].interest;
+      const useInterest = topic?.trim() || interest || diff?.interest || DIFFICULTIES[1].interest;
       const useAge = age ?? diff?.age ?? 30;
       const useOrcs = orcCount ?? diff?.orcs ?? DEFAULT_ENEMY_COUNT;
 
@@ -502,11 +502,14 @@ export function useGame({ interest, age, orcCount }: UseGameOptions = {}) {
     [age, difficulty, interest, orcCount],
   );
 
-  /** Called by the setup screen once the player has entered a name + difficulty. */
+  /**
+   * Called by the setup screen once the player has entered a name,
+   * difficulty and (optionally) their own topic for the questions.
+   */
   const begin = useCallback(
-    async (playerName: string, chosen: Difficulty) => {
+    async (playerName: string, chosen: Difficulty, topic?: string) => {
       dispatch({ type: "setup", playerName, difficulty: chosen });
-      await startRun(undefined, chosen);
+      await startRun(undefined, chosen, topic);
     },
     [startRun],
   );

@@ -123,6 +123,30 @@ describe("useGame", () => {
     expect(result.current.state.orcs).toHaveLength(DIFFICULTIES[2].orcs);
   });
 
+  it("sends a custom topic as interest, ahead of the difficulty's", async () => {
+    const stub = stubFetch({});
+    const { result } = renderHook(() => useGame());
+    await act(async () => {
+      result.current.begin("Aric", DIFFICULTIES[2], "space and astronomy");
+    });
+    await waitFor(() => expect(result.current.state.phase).toBe("playing"));
+
+    const startCall = stub.calls.find((c) => c.url.includes("/game/start"));
+    expect(JSON.parse(startCall?.body ?? "{}").interest).toBe("space and astronomy");
+  });
+
+  it("falls back to the difficulty's topic for a blank topic", async () => {
+    const stub = stubFetch({});
+    const { result } = renderHook(() => useGame());
+    await act(async () => {
+      result.current.begin("Aric", DIFFICULTIES[2], "   ");
+    });
+    await waitFor(() => expect(result.current.state.phase).toBe("playing"));
+
+    const startCall = stub.calls.find((c) => c.url.includes("/game/start"));
+    expect(JSON.parse(startCall?.body ?? "{}").interest).toBe(DIFFICULTIES[2].interest);
+  });
+
   it("seeds orcs and enters playing", async () => {
     stubFetch({});
     const { result } = renderHook(() => useGame());
