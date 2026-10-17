@@ -65,8 +65,11 @@ def parent_to(child, parent):
 
     Prop geometry is authored in world coordinates, so the inverse has to be set
     or the parent's transform is applied on top and every prop lands at twice
-    its intended position.
+    its intended position. `matrix_world` is computed by the depsgraph, and for
+    an empty created moments before it is still the identity, so refresh the
+    view layer first - otherwise the inverse is the identity too.
     """
+    bpy.context.view_layer.update()
     child.parent = parent
     child.matrix_parent_inverse = parent.matrix_world.inverted()
     return child

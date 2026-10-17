@@ -314,18 +314,21 @@ export function Level({ onReady }: { onReady: (m: Markers) => void }) {
 
   useEffect(() => {
     // Dev-only handles for debugging the loaded level from the console (and
-    // for the browser tests): the level group, its scene, and the camera.
+    // for the browser tests): the level group, its scene, the camera, and the
+    // resolved markers the rest of the game reads.
     if (import.meta.env.DEV) {
       const dbg = globalThis as unknown as {
         __dungeon?: THREE.Group;
         __dungeonScene?: THREE.Scene;
         __dungeonCamera?: THREE.Camera;
+        __dungeonMarkers?: Markers;
       };
       dbg.__dungeon = scene;
       dbg.__dungeonScene = scene.parent as THREE.Scene;
       dbg.__dungeonCamera = camera;
+      dbg.__dungeonMarkers = markers;
     }
-  }, [camera, scene]);
+  }, [camera, scene, markers]);
 
   return <primitive object={scene} />;
 }

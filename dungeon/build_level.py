@@ -300,6 +300,10 @@ def make_empty(name, location, parent=None):
 
 
 def parent_to(child, parent):
+    # The depsgraph computes matrix_world; a marker empty created moments ago
+    # still reports identity, and the stale inverse would place the prop at
+    # twice its cell. Refresh the view layer before inverting.
+    bpy.context.view_layer.update()
     child.parent = parent
     child.matrix_parent_inverse = parent.matrix_world.inverted()
 
