@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
-import { ApiError, MAX_ANSWER_LENGTH, WIN_POINTS } from "../api/types";
+import { ApiError, MAX_ANSWER_LENGTH, MAX_SCORE } from "../api/types";
 import { api } from "../api/client";
 import {
   DEFAULT_ENEMY_COUNT,
@@ -78,6 +78,7 @@ export interface GameState {
   revealed: string | null;
   level: number;
   gameOver: boolean;
+  /** True once the player has reached the altar - the run's win condition. */
   won: boolean;
   endReason: "won" | "lost" | null;
   runSeed: number;
@@ -147,10 +148,10 @@ type Action =
       points: number;
       level: number;
       gameOver: boolean;
-      won: boolean;
       orcName: string;
     }
   | { type: "answer/fail"; message: string }
+  | { type: "altar/reached" }
   | { type: "orc/remove"; id: string }
   | { type: "orcs/reinforce"; cells: Cell[] }
   | { type: "orcs/move"; moves: OrcMove[] }
@@ -312,7 +313,9 @@ export function reducer(state: GameState, action: Action): GameState {
 
     case "answer/ok": {
       const activeId = state.activeEnemyId;
-      const finished = action.gameOver || action.won;
+      // The backend no longer ends a run: only losing the last life does. The
+      // win is the player's own walk to the altar ("altar/reached" below).
+      const finished = action.gameOver;
 
       const orcs = state.orcs.map((o) => {
         if (o.id !== activeId) return o;
@@ -346,20 +349,37 @@ export function reducer(state: GameState, action: Action): GameState {
         points: action.points,
         level: action.level,
         gameOver: action.gameOver,
-        won: action.won,
         verdict: action.correct
           ? { text: `${action.orcName} cowers and dissolves.`, good: true }
           : { text: `${action.orcName} strikes you!`, good: false },
         // A short, per-orc environment beat. The long opening narration is a
         // fixed welcome only; replaying it after every kill is noise.
         notice: action.correct ? action.beat : state.notice,
-        endReason: finished ? (action.won ? "won" : "lost") : state.endReason,
+        endReason: finished ? "lost" : state.endReason,
         phase: finished ? "over" : "playing",
       };
     }
 
     case "answer/fail":
       return { ...state, submitting: false, notice: action.message };
+
+    // Reaching the altar ends the run in the player's favour, however many
+    // orcs are still standing: fighting every one of them is optional.
+    case "altar/reached": {
+      if (state.phase !== "playing") return state;
+      return {
+        ...state,
+        phase: "over",
+        won: true,
+        endReason: "won",
+        activeEnemyId: null,
+        question: null,
+        hint: null,
+        revealed: null,
+        verdict: null,
+        notice: null,
+      };
+    }
 
     // The dissolve has finished; take the orc out of the scene for good.
     case "orc/remove":
@@ -368,9 +388,9 @@ export function reducer(state: GameState, action: Action): GameState {
         orcs: state.orcs.map((o) => (o.id === action.id ? { ...o, gone: true } : o)),
       };
 
-    // Every orc is down and the run is not won: the dungeon sends more. Without
-    // this a run with finite orcs and few points would strand the player - no
-    // orcs left to ask questions, no way to reach 90, no way to lose either.
+    // Every orc is down and the run is not over: the dungeon sends more. The
+    // altar can still be rooms away, and a walk with no one left to ask a
+    // question is a walk with nothing to do.
     case "orcs/reinforce":
       if (action.cells.length === 0) return state;
       return {
@@ -522,7 +542,6 @@ export function useGame({ interest, age, orcCount }: UseGameOptions = {}) {
           points: res.points,
           level: res.level,
           gameOver: res.game_over,
-          won: res.won,
           orcName: orc ? orcNameForCell(orc.cell, state.runSeed) : "The orc",
           beat: orc
             ? defeatBeat(orc.cell, state.runSeed, state.orcs.filter((o) => o.status === "defeated").length)
@@ -559,6 +578,13 @@ export function useGame({ interest, age, orcCount }: UseGameOptions = {}) {
 
   const retreat = useCallback(() => dispatch({ type: "retreat" }), []);
   const clearNotice = useCallback(() => dispatch({ type: "clear-verdict" }), []);
+
+  /**
+   * The player has walked up to the altar: that is the win. Declared by the
+   * App's proximity loop, which is the only thing that knows where the player
+   * is standing.
+   */
+  const reachAltar = useCallback(() => dispatch({ type: "altar/reached" }), []);
 
   /**
    * The super power: spend health to tear the answer out of the orc.
@@ -625,11 +651,12 @@ export function useGame({ interest, age, orcCount }: UseGameOptions = {}) {
     requestHint,
     useSuperPower,
     retreat,
+    reachAltar,
     clearNotice,
     moveOrcs,
     reinforceWave,
     showNotice,
-    winPoints: WIN_POINTS,
+    maxScore: MAX_SCORE,
     healthPct: Math.max(0, Math.min(100, (state.health / state.maxHealth) * 100)),
     canUseSuperPower: !state.powering && !state.revealed && state.health > 0,
   };

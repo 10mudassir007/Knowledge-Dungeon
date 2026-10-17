@@ -83,7 +83,6 @@ class EnvironmentResponse(BaseModel):
     lives: int
     points: int
     level: int
-    won: bool
     game_over: bool
 
 
@@ -114,7 +113,6 @@ class CheckAnswerResponse(BaseModel):
     lives: int
     points: int
     level: int
-    won: bool
     game_over: bool
 
 
@@ -122,7 +120,6 @@ class StateResponse(BaseModel):
     lives: int
     points: int
     level: int
-    won: bool
     game_over: bool
 
 
@@ -141,7 +138,6 @@ def state_response(state: GameState) -> StateResponse:
         lives=state.lives,
         points=state.points,
         level=state.level,
-        won=state.won,
         game_over=state.game_over,
     )
 
@@ -154,10 +150,11 @@ def require_session(session_id: str) -> Session:
 
 
 def require_playable(session: Session) -> None:
+    # There is no server-side win: the client decides the run is won when the
+    # player reaches the altar, and the session keeps scoring until the lives
+    # run out.
     if session.state.game_over:
         raise HTTPException(status_code=400, detail="Game over")
-    if session.state.won:
-        raise HTTPException(status_code=400, detail="Game already won")
 
 
 def require_active_question(session: Session) -> ActiveQuestion:
@@ -366,7 +363,6 @@ def answer_check(session_id: str, payload: AnswerCheckRequest):
         lives=session.state.lives,
         points=session.state.points,
         level=session.state.level,
-        won=session.state.won,
         game_over=session.state.game_over,
     )
 

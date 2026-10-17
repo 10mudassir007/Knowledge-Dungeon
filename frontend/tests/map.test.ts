@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   ALTAR,
+  ALTAR_RANGE,
   BRAZIERS,
   CELL,
   ENEMY_ANCHORS,
@@ -14,6 +15,7 @@ import {
   WIDTH,
   type Cell,
   altarReachableFrom,
+  bfsDistances,
   canStand,
   cellToWorld,
   charAt,
@@ -22,6 +24,8 @@ import {
   isFloor,
   isWall,
   reachableCells,
+  reachedAltar,
+  routeCells,
   torchCells,
   worldToCell,
 } from "../src/world/map";
@@ -230,6 +234,79 @@ describe("coordinates", () => {
     const col = SPAWN.col + Math.round(dx);
     const row = SPAWN.row + Math.round(dz);
     expect(isWall(col, row)).toBe(false);
+  });
+});
+
+describe("route to the altar", () => {
+  it("measures the walk out from any cell", () => {
+    const fromSpawn = bfsDistances(SPAWN);
+    const path = shortestPath(SPAWN, ALTAR);
+    expect(path).not.toBeNull();
+    expect(fromSpawn.get(`${SPAWN.col},${SPAWN.row}`)).toBe(0);
+    expect(fromSpawn.get(`${ALTAR.col},${ALTAR.row}`)).toBe((path?.length ?? 0) - 1);
+  });
+
+  it("agrees from either end", () => {
+    const fromAltar = bfsDistances(ALTAR);
+    const fromSpawn = bfsDistances(SPAWN);
+    const target = `${ALTAR.col},${ALTAR.row}`;
+    expect(fromAltar.get(`${SPAWN.col},${SPAWN.row}`)).toBe(fromSpawn.get(target));
+  });
+
+  it("returns nothing when it starts inside a wall", () => {
+    expect(bfsDistances({ col: 0, row: 0 }).size).toBe(0);
+  });
+
+  it("lists spawn and altar on the route", () => {
+    const route = routeCells();
+    expect(route.has(`${SPAWN.col},${SPAWN.row}`)).toBe(true);
+    expect(route.has(`${ALTAR.col},${ALTAR.row}`)).toBe(true);
+  });
+
+  it("is symmetric: the walk back uses the same cells", () => {
+    expect(routeCells(ALTAR, SPAWN)).toEqual(routeCells());
+  });
+
+  it("holds only floor cells that shorten both walks", () => {
+    const out = bfsDistances(SPAWN);
+    const back = bfsDistances(ALTAR);
+    const total = out.get(`${ALTAR.col},${ALTAR.row}`) as number;
+    const route = routeCells();
+
+    for (const key of route) {
+      const [col, row] = key.split(",").map(Number);
+      expect(isWall(col, row), key).toBe(false);
+      // Off a shortest path, out + back overshoots the shortest walk.
+      expect((out.get(key) as number) + (back.get(key) as number), key).toBe(total);
+      if (key === `${SPAWN.col},${SPAWN.row}`) continue;
+      // One step back towards spawn is also on the route, so the whole route
+      // is walkable towards the altar and never dead-ends halfway.
+      const closer = ([[1, 0], [-1, 0], [0, 1], [0, -1]] as const).some(([dc, dr]) => {
+        const n = `${col + dc},${row + dr}`;
+        return out.get(n) === (out.get(key) as number) - 1 && route.has(n);
+      });
+      expect(closer, `no step towards spawn from ${key}`).toBe(true);
+    }
+  });
+
+  it("is a minority of the maze - the dead ends are not on it", () => {
+    const floor = GRID.join("").split("").filter((ch) => ch !== "#").length;
+    expect(routeCells().size).toBeGreaterThan(60);
+    expect(routeCells().size).toBeLessThan(floor);
+  });
+
+  it("decides the win by distance alone", () => {
+    // The win condition: within ALTAR_RANGE of the altar, orcs standing or not.
+    expect(reachedAltar(0)).toBe(true);
+    expect(reachedAltar(ALTAR_RANGE)).toBe(true);
+    expect(reachedAltar(ALTAR_RANGE + 0.01)).toBe(false);
+    expect(reachedAltar(Infinity)).toBe(false);
+  });
+
+  it("keeps the altar within walking reach of its own win range", () => {
+    // A win radius under half a cell would need the player to stand dead on
+    // the altar's centre, which the prop geometry may not allow.
+    expect(ALTAR_RANGE).toBeGreaterThanOrEqual(CELL / 2);
   });
 });
 

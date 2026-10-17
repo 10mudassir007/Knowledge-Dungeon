@@ -2,6 +2,11 @@
 
 Both the API (`main.py`) and the CLI (`main-cli.py`) call `apply_answer`, so
 there is exactly one place where points, lives and level are decided.
+
+There is deliberately no server-side win. The run is won in the client by
+reaching the altar, and the backend knows nothing about the dungeon (orcs,
+altar, geometry are all frontend concepts). Points are a score that keeps
+accumulating until the lives run out.
 """
 
 from dataclasses import dataclass, field
@@ -10,7 +15,6 @@ LEVEL_POINTS = 30
 MAX_LEVEL = 3
 STARTING_LIVES = 3
 POINTS_PER_CORRECT = 10
-WIN_POINTS = LEVEL_POINTS * MAX_LEVEL
 
 
 def level_for_points(points: int) -> int:
@@ -23,7 +27,7 @@ class GameState:
     """Immutable snapshot of a player's progress.
 
     `level` and `game_over` are derived in __post_init__ so a hand-built state
-    can never disagree with the rules. `won` is a read-only property.
+    can never disagree with the rules.
     """
 
     points: int = 0
@@ -35,10 +39,6 @@ class GameState:
         object.__setattr__(self, "level", level_for_points(self.points))
         object.__setattr__(self, "game_over", self.lives <= 0)
 
-    @property
-    def won(self) -> bool:
-        return self.points >= WIN_POINTS
-
 
 def new_state() -> GameState:
     """A fresh game: 0 points, full lives, level 1."""
@@ -48,11 +48,10 @@ def new_state() -> GameState:
 def apply_answer(state: GameState, correct: bool) -> GameState:
     """Score one answer and return the resulting state.
 
-    Correct -> +10 points. Wrong -> -1 life. A finished game (no lives left, or
-    the 90-point win reached) never changes further, so replaying an answer
-    after the fact cannot move the score.
+    Correct -> +10 points. Wrong -> -1 life. A game over (no lives left) never
+    changes further, so replaying an answer after the fact cannot move the score.
     """
-    if state.game_over or state.won:
+    if state.game_over:
         return state
 
     if correct:

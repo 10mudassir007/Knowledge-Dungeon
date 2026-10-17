@@ -9,7 +9,6 @@ from core.rules import (
     MAX_LEVEL,
     POINTS_PER_CORRECT,
     STARTING_LIVES,
-    WIN_POINTS,
     GameState,
     apply_answer,
     level_for_points,
@@ -22,14 +21,12 @@ def test_rule_constants():
     assert POINTS_PER_CORRECT == 10
     assert LEVEL_POINTS == 30
     assert MAX_LEVEL == 3
-    assert WIN_POINTS == 90
 
 
 def test_new_state():
     state = new_state()
     assert (state.points, state.lives, state.level) == (0, 3, 1)
     assert state.game_over is False
-    assert state.won is False
 
 
 # --- correct answers ----------------------------------------------------------
@@ -99,27 +96,26 @@ def test_negative_points_stay_level_one():
     assert level_for_points(-50) == 1
 
 
-# --- winning ------------------------------------------------------------------
+# --- no server-side win -------------------------------------------------------
 
-def test_win_at_90_points():
+def test_points_keep_accumulating_past_the_level_cap():
+    # The run is won in the client by reaching the altar, so scoring never
+    # "completes" a game: 90 points is a full level 3, not a finish line.
     state = new_state()
-    for _ in range(9):
+    for _ in range(12):
         state = apply_answer(state, True)
-    assert state.points == WIN_POINTS
-    assert state.won is True
+    assert state.points == 120
+    assert state.level == MAX_LEVEL
+    assert state.game_over is False
 
 
-def test_not_won_at_89_points():
-    assert GameState(points=WIN_POINTS - 1).won is False
-    assert GameState(points=WIN_POINTS).won is True
-
-
-def test_finished_game_ignores_further_answers():
+def test_only_the_last_life_finishes_a_game():
     state = new_state()
-    for _ in range(9):
+    for _ in range(20):
         state = apply_answer(state, True)
-    assert apply_answer(state, True) == state
-    assert apply_answer(state, False) == state
+    assert state.game_over is False
+    state = apply_answer(GameState(points=state.points, lives=1), False)
+    assert state.game_over is True
 
 
 # --- game over ----------------------------------------------------------------
@@ -157,7 +153,6 @@ def test_derived_fields_cannot_disagree_with_rules():
     state = GameState(points=70, lives=2)
     assert state.level == 3
     assert state.game_over is False
-    assert state.won is False
 
 
 def test_hands_off_the_same_scoring_path_for_both_callers():

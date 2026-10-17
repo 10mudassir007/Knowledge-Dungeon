@@ -268,7 +268,6 @@ def test_correct_answer_scores_ten_points(client, session_id):
         "lives": 3,
         "points": 10,
         "level": 1,
-        "won": False,
         "game_over": False,
     }
 
@@ -350,7 +349,6 @@ def test_level_up_at_30_points(client, session_id):
         "lives": 3,
         "points": 30,
         "level": 2,
-        "won": False,
         "game_over": False,
     }
 
@@ -362,26 +360,28 @@ def test_level_up_at_60_points(client, session_id):
     assert client.get(f"/game/{session_id}/state").json()["level"] == 3
 
 
-def test_nine_correct_answers_wins(client, session_id):
+def test_scoring_past_90_points_does_not_end_the_run(client, session_id):
+    # There is no server-side win: the client wins by reaching the altar, so
+    # the score keeps climbing and the session stays playable.
+    body = None
     for _ in range(9):
         client.get(f"/game/{session_id}/question")
         body = _answer(client, session_id, "42").json()
 
     assert body["points"] == 90
     assert body["level"] == 3
-    assert body["won"] is True
     assert body["game_over"] is False
 
 
-def test_won_game_refuses_further_play(client, session_id):
-    for _ in range(9):
+def test_full_score_session_still_serves_questions(client, session_id):
+    for _ in range(10):
         client.get(f"/game/{session_id}/question")
         _answer(client, session_id, "42")
 
-    assert client.get(f"/game/{session_id}/question").status_code == 400
-    assert client.get(f"/game/{session_id}/environment").status_code == 400
-    assert client.post(f"/game/{session_id}/hint").status_code == 400
-    assert _answer(client, session_id, "42").status_code == 400
+    assert client.get(f"/game/{session_id}/question").status_code == 200
+    assert client.post(f"/game/{session_id}/hint").status_code == 200
+    assert client.get(f"/game/{session_id}/environment").status_code == 200
+    assert _answer(client, session_id, "42").json()["points"] == 110
 
 
 def test_three_wrong_answers_ends_the_game(client, session_id):

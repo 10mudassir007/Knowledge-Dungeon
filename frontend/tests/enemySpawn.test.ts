@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ANCHOR_EXCLUSION,
   DEFAULT_ENEMY_COUNT,
+  MIN_ENEMY_SPACING,
   REINFORCE_EXCLUSION,
   enemyId,
   mulberry32,
@@ -9,7 +10,7 @@ import {
   pickReinforcementCells,
   stepToward,
 } from "../src/world/enemySpawn";
-import { ALTAR, LECTERN, SPAWN, altarReachableFrom, canStand, cellToWorld, charAt, isEligible, type Cell } from "../src/world/map";
+import { ALTAR, LECTERN, SPAWN, altarReachableFrom, canStand, cellToWorld, charAt, isEligible, routeCells, type Cell } from "../src/world/map";
 
 const chebyshev = (a: { col: number; row: number }, b: { col: number; row: number }) =>
   Math.max(Math.abs(a.col - b.col), Math.abs(a.row - b.row));
@@ -139,6 +140,38 @@ function farthestPair(seed: number): { a: Cell; b: Cell } {
   return { a: cells[0], b: cells[cells.length - 1] };
 }
 
+describe("the scatter guards the altar route", () => {
+  it("puts every initial orc on a shortest walk to the altar", () => {
+    // The walk to the altar is the run: an orc a dead end never meets the
+    // player. Every difficulty count, many seeds.
+    const route = routeCells();
+    for (let seed = 0; seed < 60; seed += 1) {
+      for (const cell of pickEnemyCells(seed, 11)) {
+        expect(route.has(cellKey(cell)), `seed ${seed} at ${cellKey(cell)}`).toBe(true);
+      }
+    }
+  });
+
+  it("spaces the initial scatter out", () => {
+    for (const seed of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) {
+      const cells = pickEnemyCells(seed, 7);
+      for (let i = 0; i < cells.length; i += 1) {
+        for (let j = i + 1; j < cells.length; j += 1) {
+          expect(
+            chebyshev(cells[i], cells[j]),
+            `seed ${seed}: ${cellKey(cells[i])} vs ${cellKey(cells[j])}`,
+          ).toBeGreaterThanOrEqual(MIN_ENEMY_SPACING);
+        }
+      }
+    }
+  });
+
+  it("still fills the whole count on the route", () => {
+    expect(pickEnemyCells(4, 11)).toHaveLength(11);
+    expect(pickEnemyCells(4, 11).every((c) => routeCells().has(cellKey(c)))).toBe(true);
+  });
+});
+
 describe("stepToward", () => {
   it("walks a ghost one step at a time until it stands next to the target", () => {
     for (let seed = 0; seed < 12; seed += 1) {
@@ -228,6 +261,17 @@ describe("pickReinforcementCells", () => {
         expect(chebyshev(c, LECTERN)).toBeGreaterThan(ANCHOR_EXCLUSION);
       }
       expect(altarReachableFrom(SPAWN, blocked), `seed ${seed}`).toBe(true);
+    }
+  });
+
+  it("sends reinforcements onto the route to the altar too", () => {
+    const route = routeCells();
+    for (let seed = 0; seed < 20; seed += 1) {
+      const initial = pickEnemyCells(seed, 7);
+      const player = pickEnemyCells(seed + 500, 1)[0];
+      for (const c of pickReinforcementCells(seed * 17, 4, { player, occupied: initial })) {
+        expect(route.has(cellKey(c)), `seed ${seed} at ${cellKey(c)}`).toBe(true);
+      }
     }
   });
 

@@ -187,6 +187,75 @@ export function altarReachableFrom(spawn: Cell = SPAWN, blocked: ReadonlySet<str
   return reachableCells(spawn, blocked).has(`${ALTAR.col},${ALTAR.row}`);
 }
 
+const NEIGHBOURS: readonly [number, number][] = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+];
+
+/**
+ * Shortest walking distance (in 4-neighbour steps) from `start` to every cell
+ * it can reach. Walls are solid; markers (Q, H, B, T, S) are floor, exactly as
+ * `reachableCells` treats them.
+ */
+export function bfsDistances(start: Cell): Map<string, number> {
+  const dist = new Map<string, number>();
+  if (isWall(start.col, start.row)) return dist;
+
+  const startKey = `${start.col},${start.row}`;
+  dist.set(startKey, 0);
+  const queue: Cell[] = [start];
+  for (let head = 0; head < queue.length; head += 1) {
+    const cur = queue[head];
+    const step = (dist.get(`${cur.col},${cur.row}`) as number) + 1;
+    for (const [dc, dr] of NEIGHBOURS) {
+      const col = cur.col + dc;
+      const row = cur.row + dr;
+      const key = `${col},${row}`;
+      if (dist.has(key) || isWall(col, row)) continue;
+      dist.set(key, step);
+      queue.push({ col, row });
+    }
+  }
+  return dist;
+}
+
+/**
+ * Every cell that lies on at least one shortest walk from `from` to `to`.
+ *
+ * A cell is on a shortest path exactly when the walk out from `from` plus the
+ * walk back in from `to` is no longer than the shortest `from` -> `to` walk.
+ * The enemy scatter is drawn from this set so the road to the altar is
+ * guarded, never bypassed.
+ */
+export function routeCells(from: Cell = SPAWN, to: Cell = ALTAR): Set<string> {
+  const out = bfsDistances(from);
+  const back = bfsDistances(to);
+  const total = out.get(`${to.col},${to.row}`);
+  const onRoute = new Set<string>();
+  if (total === undefined) return onRoute;
+
+  for (const [key, dist] of out) {
+    const remaining = back.get(key);
+    if (remaining !== undefined && dist + remaining === total) onRoute.add(key);
+  }
+  return onRoute;
+}
+
+/** How close to the altar's cell centre counts as reaching it. */
+export const ALTAR_RANGE = 2.5;
+
+/**
+ * The win condition, in one place: standing within ALTAR_RANGE of the altar.
+ *
+ * Takes the measured distance rather than coordinates because the proximity
+ * loop already has it, and the rule is the same either way.
+ */
+export function reachedAltar(metresFromAltar: number): boolean {
+  return metresFromAltar <= ALTAR_RANGE;
+}
+
 /**
  * Can a body of `radius` stand with its centre at world (worldX, worldZ)?
  *

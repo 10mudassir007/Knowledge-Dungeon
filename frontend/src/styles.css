@@ -317,6 +317,21 @@ button.primary:hover:not(:disabled) {
   box-shadow: none;
 }
 
+/* The win condition, in play: the altar is the goal, the orcs are not. */
+.objective {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ember-hot);
+  text-shadow: 0 0 10px rgba(255, 138, 60, 0.35);
+}
+
+.objective-range {
+  color: var(--parchment-dim);
+  text-shadow: none;
+}
+
 .score {
   /* Anchored to the top centre, outside the left/right flex pair, so it can
      never drift down into the progress bar that sits below it. */
@@ -1116,11 +1131,12 @@ button.primary:hover:not(:disabled) {
 }
 
 /* --- interface hidden (I) / fps readout (F) / pause menu blocks ---------- */
+/* Bottom-left corner: top-centre belongs to the score, and the minimap owns
+   the bottom-right. */
 .fps-readout {
   position: fixed;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0.9rem;
+  bottom: 0.9rem;
   padding: 4px 12px;
   font-family: var(--font-ui);
   font-size: 12px;

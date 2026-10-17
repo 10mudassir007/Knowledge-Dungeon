@@ -22,7 +22,7 @@ export const SHORTCUTS: { keys: string; action: string }[] = [
   { keys: "Left Shift", action: "Sprint" },
   { keys: "Mouse", action: "Look around" },
   { keys: "Arrow keys", action: "Turn (fallback)" },
-  { keys: "E", action: "Face an orc / read the lectern" },
+  { keys: "E", action: "Read the lectern / face an orc again" },
   { keys: "M", action: "Dungeon map" },
   { keys: "P", action: "Pause menu (sound, graphics, shortcuts)" },
   { keys: "I", action: "Hide / show the interface" },
@@ -85,6 +85,16 @@ export function PauseMenu({
     <div className="pausemenu" role="dialog" aria-modal="true" data-testid="pause-menu">
       <div className="pausemenu-inner">
         <h2>Paused</h2>
+
+        <section className="pause-block">
+          <h3>Objective</h3>
+          <p className="settings-note" data-testid="objective-copy">
+            <strong>Reach the altar</strong> on the far side of the maze. The orcs that stand on
+            the way test you as you come near; every answer you get right knits a little health
+            back, every one you miss costs a life. Cut through them or slip past them — reaching
+            the altar is what wins the run.
+          </p>
+        </section>
 
         <section className="pause-block">
           <h3>Sound</h3>

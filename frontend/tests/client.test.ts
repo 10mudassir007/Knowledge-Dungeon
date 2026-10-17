@@ -66,7 +66,6 @@ describe("api client", () => {
       lives: 3,
       points: 10,
       level: 1,
-      won: false,
       game_over: false,
     });
     vi.stubGlobal("fetch", fetchMock);

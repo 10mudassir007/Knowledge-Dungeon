@@ -25,7 +25,6 @@ export interface StateResponse {
   lives: number;
   points: number;
   level: number;
-  won: boolean;
   game_over: boolean;
 }
 
@@ -54,7 +53,6 @@ export interface AnswerCheckResponse {
   lives: number;
   points: number;
   level: number;
-  won: boolean;
   game_over: boolean;
 }
 
@@ -66,8 +64,14 @@ export interface HealthResponse {
   active_sessions: number;
 }
 
-/** Backend rules, mirrored from core/rules.py for HUD purposes only. */
-export const WIN_POINTS = 90;
+/**
+ * Backend rules, mirrored from core/rules.py for HUD purposes only.
+ *
+ * MAX_SCORE is the score band (3 levels x 30 points) the HUD bar fills
+ * against - not a win condition: a run is won by reaching the altar, and
+ * points keep accumulating past it while the lives last.
+ */
+export const MAX_SCORE = 90;
 export const MAX_LEVEL = 3;
 export const MAX_LIVES = 3;
 export const MAX_ANSWER_LENGTH = 500;

@@ -24,13 +24,13 @@ import { Level, type Markers } from "./world/Level";
 import { chebyshev, orcTitleForCell, stepToward } from "./world/enemySpawn";
 import { Player } from "./world/Player";
 import { Lights, usePrefersReducedMotion } from "./world/Lights";
-import { ENGAGE_RANGE, LECTERN_RANGE, Orc } from "./world/Orc";
+import { LECTERN_RANGE, Orc } from "./world/Orc";
 
 /** How long the defeat line and its environment beat stay up before fading. */
 const DEFEAT_TEXT_MS = DEFEAT_LINGER_MS;
 import { DialogueSlab } from "./world/DialogueSlab";
 import { DungeonEnvironment } from "./world/DungeonEnvironment";
-import { SPAWN, SPAWN_YAW, cellToWorld, worldToCell, type Cell } from "./world/map";
+import { SPAWN, SPAWN_YAW, cellToWorld, reachedAltar, worldToCell, type Cell } from "./world/map";
 import {
   playSample,
   playSfx,
@@ -55,6 +55,7 @@ export interface Proximity {
   enemyDistance: number;
   enemyWorld: [number, number, number] | null;
   lecternDistance: number;
+  altarDistance: number;
 }
 
 const EMPTY_PROXIMITY: Proximity = {
@@ -62,7 +63,17 @@ const EMPTY_PROXIMITY: Proximity = {
   enemyDistance: Infinity,
   enemyWorld: null,
   lecternDistance: Infinity,
+  altarDistance: Infinity,
 };
+
+/**
+ * An orc closes to one cell (2 m) of the player and stops, so the notice
+ * radius has to reach a touch further than ENGAGE_RANGE or a stalking orc
+ * could stand just out of reach forever.
+ */
+const AUTO_ENGAGE_RANGE = 3.0;
+/** After a dialogue the orc is left alone this long before it asks again. */
+const AUTO_ENGAGE_COOLDOWN_MS = 4000;
 
 /** Catches a GLB load failure and offers a retry instead of a blank canvas. */
 class GLBErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
@@ -302,6 +313,7 @@ function ProximityTracker({
       enemyDistance: bestDist,
       enemyWorld: bestWorld,
       lecternDistance: Math.hypot(camera.position.x - markers.lectern[0], camera.position.z - markers.lectern[2]),
+      altarDistance: Math.hypot(camera.position.x - markers.altar[0], camera.position.z - markers.altar[2]),
     };
   });
 
@@ -477,6 +489,7 @@ export default function App() {
     begin,
     startRun,
     useSuperPower,
+    reachAltar,
     clearNotice,
     moveOrcs,
     reinforceWave,
@@ -499,6 +512,8 @@ export default function App() {
   const [uiHidden, setUiHidden] = useState(false);
   /** F: FPS readout in the corner. */
   const [showFps, setShowFps] = useState(false);
+  /** Whole metres to the altar, for the HUD objective line. */
+  const [altarMetres, setAltarMetres] = useState<number | null>(null);
 
   // Graphics: first run asks the machine what it can handle, after that the
   // player pins a tier (or stays on auto and lets the FPS guard trim).
@@ -523,6 +538,16 @@ export default function App() {
   // dialogue, pause, and the death screen.
   const frozen = state.phase !== "playing" || paused;
   const dead = state.phase === "over" && state.endReason === "lost";
+
+  // Dev-only diagnostic handle (stripped from production builds), mirroring the
+  // __dungeon handles in world/Level.tsx: the browser tests read the live state
+  // and the per-frame proximity snapshot through it.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const dbg = globalThis as unknown as { __kdState?: unknown; __kdProx?: () => unknown };
+    dbg.__kdState = state;
+    dbg.__kdProx = () => proximityRef.current;
+  }, [state]);
 
   // The defeat line ("Grukk cowers and dissolves.") and the short environment beat
   // each hold for 3 s, then the CSS fade-out takes over. `clearNotice` is a
@@ -646,7 +671,33 @@ export default function App() {
     if (!next) playSfx("click");
   }, []);
 
-  // Poll the proximity ref at 10Hz so the prompt doesn't re-render every frame.
+  // ---- everything outside active play is frozen ---------------------------
+  const live = useRef(state);
+  live.current = state;
+
+  const engageRef = useRef(engage);
+  engageRef.current = engage;
+  const reachAltarRef = useRef(reachAltar);
+  reachAltarRef.current = reachAltar;
+
+  // A dialogue that just closed leaves the player in peace for a beat: orcs
+  // crowd the player, so re-starting a fight must be a decision, not an instant
+  // loop. The cooldown belongs to the encounter rather than to one orc - a
+  // pursuer steps a cell further and its per-cell id changes - and wilts once
+  // the player is clear of every orc. E re-opens a fight the moment it is
+  // wanted.
+  const suppressedUntil = useRef(0);
+  const prevPhase = useRef(state.phase);
+  useEffect(() => {
+    if (prevPhase.current === "dialogue" && state.phase === "playing") {
+      suppressedUntil.current = performance.now() + AUTO_ENGAGE_COOLDOWN_MS;
+    }
+    prevPhase.current = state.phase;
+  }, [state.phase]);
+
+  // Poll the proximity ref at 10Hz. This is where the altar win lands, where
+  // orcs start their own fights, and where the prompt is decided - none of it
+  // belongs in the per-frame loop.
   useEffect(() => {
     if (frozen) {
       setPrompt(null);
@@ -654,13 +705,33 @@ export default function App() {
     }
     const tick = () => {
       const p = proximityRef.current;
-      if (p.enemyId && p.enemyDistance <= ENGAGE_RANGE) {
+      // Infinity until the level reports its markers; leave the last reading up.
+      if (Number.isFinite(p.altarDistance)) {
+        const metres = Math.round(p.altarDistance);
+        setAltarMetres((m) => (m === metres ? m : metres));
+      }
+
+      const near = p.enemyId !== null && p.enemyDistance <= AUTO_ENGAGE_RANGE;
+      const clear = p.enemyId === null || p.enemyDistance > AUTO_ENGAGE_RANGE + 1.5;
+      if (suppressedUntil.current !== 0 && (clear || performance.now() >= suppressedUntil.current)) {
+        suppressedUntil.current = 0;
+      }
+      const suppressed = near && suppressedUntil.current !== 0;
+
+      if (near && !suppressed && live.current.phase === "playing" && !live.current.engaging) {
+        void engageRef.current(p.enemyId as string);
+      }
+
+      if (suppressed) {
         setPrompt({ text: "Press E to face the orc" });
-      } else if (p.lecternDistance <= LECTERN_RANGE) {
+      } else if (!near && p.lecternDistance <= LECTERN_RANGE) {
         setPrompt({ text: "Press E to read the lectern" });
       } else {
         setPrompt(null);
       }
+
+      // Reaching the altar wins the run, orcs standing or not.
+      if (reachedAltar(p.altarDistance)) reachAltarRef.current();
     };
     tick();
     const id = window.setInterval(tick, 100);
@@ -670,7 +741,9 @@ export default function App() {
   const interact = useCallback(async () => {
     if (state.phase !== "playing" || paused) return;
     const p = proximityRef.current;
-    if (p.enemyId && p.enemyDistance <= ENGAGE_RANGE) {
+    if (p.enemyId && p.enemyDistance <= AUTO_ENGAGE_RANGE) {
+      // A deliberate re-engagement: clear the cooldown so E always works.
+      suppressedUntil.current = 0;
       await engage(p.enemyId);
       return;
     }
@@ -678,8 +751,7 @@ export default function App() {
   }, [engage, paused, requestHint, state.phase]);
 
   // ---- the dungeon is not passive: orcs stalk, and fresh ones pour in -------
-  const live = useRef(state);
-  live.current = state;
+
 
   /** Orcs within PURSUIT_RANGE cells of the player walk one step toward them. */
   const PURSUIT_MS = 700;
@@ -905,7 +977,8 @@ export default function App() {
           powerUses={state.powerUses}
           points={state.points}
           level={state.level}
-          winPoints={game.winPoints}
+          maxScore={game.maxScore}
+          altarMetres={altarMetres}
           prompt={prompt}
           notice={state.notice}
           verdict={state.verdict}

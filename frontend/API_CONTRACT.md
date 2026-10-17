@@ -11,17 +11,20 @@ Base URL: `VITE_API_URL` if set, otherwise `/api` (Vite dev proxy strips the pre
 - Sessions are **in-memory** and expire after **2 hours** of inactivity → `404`.
 - The backend knows **nothing about enemies**. Enemy placement, identity and
   "who is asking" are frontend-only concepts.
+- The backend also models **no win**. A run is won in the client by reaching the
+  altar; the server only ever ends a game at **0 lives**.
 - The answer and accepted alternatives are **never** returned by any endpoint.
 - Game rules (`core/rules.py`): 3 lives, +10 points per correct answer,
-  level = `min(3, 1 + points // 30)`, win at **90** points, game over at **0** lives.
-  A finished game never changes further.
+  level = `min(3, 1 + points // 30)`, game over at **0** lives. Points keep
+  accumulating (there is no score cap and no 90-point finish), but a game over
+  never changes further.
 
 ## Status codes
 
 | Code | Meaning | Where it happens |
 | --- | --- | --- |
 | `200` | success | every endpoint |
-| `400` | Game over or already won | `question`, `hint`, `answer-check`, `environment` |
+| `400` | Game over (no lives left) | `question`, `hint`, `answer-check`, `environment` |
 | `404` | Invalid or expired `session_id` | every `/game/{sid}` endpoint |
 | `409` | No active question on the server | `hint`, `answer-check` |
 | `422` | Request body failed validation | `start`, `answer-check` |
@@ -72,7 +75,6 @@ Both paths are aliases for the same handler.
 | `lives` | number |
 | `points` | number |
 | `level` | number (1–3) |
-| `won` | boolean (`points >= 90`) |
 | `game_over` | boolean (`lives <= 0`) |
 
 **Errors** `404`
@@ -92,7 +94,7 @@ rather than regenerated.
 
 > Only `question`. There is no `correct_answer`, no alternatives, no enemy id.
 
-**Errors** `404` · `400` game over/won · `502` model never produced a valid
+**Errors** `404` · `400` game over · `502` model never produced a valid
 question · `503` provider unavailable
 
 ---
@@ -109,7 +111,7 @@ Body is **ignored** — the hint is written from the server's own active questio
 | --- | --- |
 | `hint` | string |
 
-**Errors** `404` · `400` game over/won · **`409` no active question** · `503`
+**Errors** `404` · `400` game over · **`409` no active question** · `503`
 
 ---
 
@@ -136,10 +138,9 @@ by the server and ignored.
 | `lives` | number | updated |
 | `points` | number | updated |
 | `level` | number | updated |
-| `won` | boolean | |
 | `game_over` | boolean | |
 
-**Errors** `404` · `400` game over/won · **`409` no active question** · `422`
+**Errors** `404` · `400` game over · **`409` no active question** · `422`
 answer over 500 chars · `503` answer checker unavailable
 
 ---
@@ -161,7 +162,7 @@ Never returns key values.
 
 ## Also available (not used by this frontend)
 
-- `GET /game/{sid}/environment` → `{ environment, lives, points, level, won, game_over }`.
+- `GET /game/{sid}/environment` → `{ environment, lives, points, level, game_over }`.
 
 ---
 
@@ -171,5 +172,6 @@ Never returns key values.
 | --- | --- |
 | No `Spawn` empty exists in `dungeon.glb` | falls back to the grid (`S` cell if present, else `H`) and logs a warning |
 | No enemy concept in the backend | enemies are placed in `src/world/enemySpawn.ts` from a seeded RNG; the backend only scores answers |
+| No win condition in the backend | the run is won in the client when the player reaches the altar (`reachedAltar` in `src/world/map.ts`); the server only ends a game at 0 lives |
 | "Which enemy is asking" is not tracked server-side | tracked purely in `src/game/useGame.ts` as `activeEnemyId` |
 | `409` after submitting | the question is already consumed; reopening the same enemy starts a *new* question |

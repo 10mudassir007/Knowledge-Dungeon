@@ -95,12 +95,6 @@ def play(history_store: HistoryStore) -> None:
         print("Lives left:", state.lives)
         print("Current Points:", state.points)
 
-        if state.won:
-            print("====================================")
-            print("Game Win! You cleared all 3 levels!")
-            print("Final Points:", state.points)
-            break
-
 
 def main() -> None:
     play(HistoryStore(HISTORY_PATH, limit=HISTORY_LIMIT))

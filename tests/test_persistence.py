@@ -128,14 +128,17 @@ def test_cli_plays_a_full_game_with_the_shared_rules(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "get_hint", lambda *a: "Think.")
     monkeypatch.setattr(cli, "check_answer", lambda q, a, player, alts=None: player.strip() == a)
 
-    answers = iter(["space", "21"] + ["42"] * 9)
+    # 9 correct answers (90 points, all three levels) then three wrong ones:
+    # scoring past 90 does not finish a run, only the last life does.
+    answers = iter(["space", "21"] + ["42"] * 9 + ["nope"] * 3)
     monkeypatch.setattr("builtins.input", lambda *a: next(answers))
 
     cli.play(HistoryStore(str(tmp_path / "history_cli.json")))
 
     history = json.loads((tmp_path / "history_cli.json").read_text(encoding="utf-8"))
-    assert len(history) == 9
+    assert len(history) == 12
     assert history[0] == {"question": "Question 1?", "answer": "42"}
+    assert history[11] == {"question": "Question 12?", "answer": "42"}
     # Same file the API never touches.
     assert not (tmp_path / "history.json").exists()
     assert main.HISTORY_PATH != str(tmp_path / "history_cli.json")

@@ -53,7 +53,6 @@ function stubFetch(routes: Routes) {
           lives: 3,
           points: 10,
           level: 1,
-          won: false,
           game_over: false,
         },
       );
@@ -72,7 +71,6 @@ const answer = (over: Partial<Record<string, unknown>> = {}) => ({
   lives: 3,
   points: 10,
   level: 1,
-  won: false,
   game_over: false,
   ...over,
 });
@@ -354,8 +352,8 @@ describe("useGame", () => {
     expect(result.current.state.endReason).toBe("lost");
   });
 
-  it("reaches the over state when points hit 90", async () => {
-    stubFetch({ answer: () => answer({ points: 90, level: 3, won: true }) });
+  it("keeps playing past 90 points: the altar wins, the score does not", async () => {
+    stubFetch({ answer: () => answer({ points: 100, level: 3 }) });
     const { result } = renderHook(() => useGame());
     await boot(result);
     const target = result.current.state.orcs[0];
@@ -366,7 +364,36 @@ describe("useGame", () => {
       await result.current.submit("42");
     });
 
-    await waitFor(() => expect(result.current.state.phase).toBe("over"));
+    expect(result.current.state.phase).toBe("playing");
+    expect(result.current.state.points).toBe(100);
+    expect(result.current.state.endReason).toBeNull();
+  });
+
+  it("reaches the over state when the player reaches the altar", async () => {
+    stubFetch({});
+    const { result } = renderHook(() => useGame());
+    await boot(result);
+
+    await act(async () => {
+      result.current.reachAltar();
+    });
+
+    expect(result.current.state.phase).toBe("over");
+    expect(result.current.state.endReason).toBe("won");
+    expect(result.current.state.won).toBe(true);
+  });
+
+  it("wins with orcs still standing: clearing them all is optional", async () => {
+    stubFetch({});
+    const { result } = renderHook(() => useGame());
+    await boot(result);
+    expect(result.current.state.orcs.some((o) => o.status === "alive")).toBe(true);
+
+    await act(async () => {
+      result.current.reachAltar();
+    });
+
+    expect(result.current.state.orcs.some((o) => o.status === "alive")).toBe(true);
     expect(result.current.state.endReason).toBe("won");
   });
 
@@ -454,7 +481,6 @@ const answered = (over: Partial<Parameters<typeof reducer>[1]> = {}) =>
     points: 0,
     level: 1,
     gameOver: false,
-    won: false,
     orcName: "Grukk",
     ...over,
   } as Parameters<typeof reducer>[1]);
@@ -478,7 +504,7 @@ describe("health", () => {
       type: "answer/ok",
       beat: "Silence, briefly earned.",
       correct: true, lives: 3, points: 10, level: 1,
-      gameOver: false, won: false, orcName: "Grukk",
+      gameOver: false, orcName: "Grukk",
     });
     expect(direct.health).toBe(spent.health + HEAL_ON_CORRECT);
     expect(healed.health).toBeLessThanOrEqual(MAX_HEALTH);
@@ -489,7 +515,7 @@ it("heals without ever passing the maximum", () => {
     for (let i = 0; i < 4; i += 1) {
       s = reducer(s, {
         type: "answer/ok", beat: "Silence, briefly earned.", correct: true, lives: 3, points: 10,
-        level: 1, gameOver: false, won: false, orcName: "Grukk",
+        level: 1, gameOver: false, orcName: "Grukk",
       });
     }
     expect(s.health).toBe(MAX_HEALTH);
@@ -500,7 +526,7 @@ it("heals without ever passing the maximum", () => {
     for (let i = 0; i < 6; i += 1) {
       s = reducer(s, {
         type: "answer/ok", beat: "Silence, briefly earned.", correct: false, lives: 0, points: 0,
-        level: 1, gameOver: true, won: false, orcName: "Grukk",
+        level: 1, gameOver: true, orcName: "Grukk",
       });
     }
     expect(s.health).toBe(0);

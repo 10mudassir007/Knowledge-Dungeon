@@ -7,7 +7,10 @@ export interface HudProps {
   powerUses: number;
   points: number;
   level: number;
-  winPoints: number;
+  /** The score band the bar fills against - not a win condition. */
+  maxScore: number;
+  /** Whole metres to the altar, or null before the level reports its markers. */
+  altarMetres: number | null;
   prompt: { text: string } | null;
   notice: string | null;
   verdict: { text: string; good: boolean } | null;
@@ -24,6 +27,9 @@ export interface HudProps {
  * Deliberately button-free: once the pointer is locked the cursor is gone, so
  * every control is a shortcut instead (P pause, M map, I hide). The minimap
  * lives in App.tsx and toggles with M rather than being a button.
+ *
+ * The objective line spells the win condition out in play, because nothing in
+ * the dungeon itself says "the altar is the goal, the orcs are not".
  */
 export function Hud({
   playerName,
@@ -32,7 +38,8 @@ export function Hud({
   powerUses,
   points,
   level,
-  winPoints,
+  maxScore,
+  altarMetres,
   prompt,
   notice,
   verdict,
@@ -40,7 +47,7 @@ export function Hud({
 }: HudProps) {
   if (hidden) return null;
 
-  const pct = Math.max(0, Math.min(100, (points / winPoints) * 100));
+  const pct = Math.max(0, Math.min(100, (points / maxScore) * 100));
   const hp = Math.max(0, Math.min(100, (health / maxHealth) * 100));
   const rounded = Math.ceil(health);
   // Low health pulses so the player can feel the run slipping.
@@ -68,6 +75,10 @@ export function Hud({
               {rounded}
             </span>
           </div>
+          <div className="objective" data-testid="objective">
+            Reach the altar
+            {altarMetres !== null && <span className="objective-range"> · {altarMetres} m</span>}
+          </div>
           {powerUses > 0 && (
             <div className="power-uses" data-testid="power-uses">
               super power x{powerUses}
@@ -79,7 +90,7 @@ export function Hud({
           <span className="points" data-testid="points">
             {points}
           </span>
-          <span className="points-label">/ {winPoints}</span>
+          <span className="points-label">/ {maxScore}</span>
         </div>
 
         <div className="level" data-testid="level">
@@ -92,7 +103,7 @@ export function Hud({
         role="progressbar"
         aria-valuenow={points}
         aria-valuemin={0}
-        aria-valuemax={winPoints}
+        aria-valuemax={maxScore}
       >
         <div className="progress-fill" style={{ width: `${pct}%` }} />
       </div>

@@ -14,11 +14,14 @@ import {
   type Cell,
   altarReachableFrom,
   isEligible,
+  routeCells,
 } from "./map";
 
 export const DEFAULT_ENEMY_COUNT = 5;
 /** Enemies never spawn this close (Chebyshev, in cells) to these anchors. */
 export const ANCHOR_EXCLUSION = 3;
+/** Preferred Chebyshev gap between two enemies of the same wave, in cells. */
+export const MIN_ENEMY_SPACING = 4;
 
 function key(c: number, r: number): string {
   return `${c},${r}`;
@@ -52,12 +55,77 @@ function chebyshev(a: Cell, b: Cell): number {
 export { chebyshev };
 
 /**
- * Pick `count` distinct, reachable enemy cells.
+ * Weave up to `wanted` cells out of `pool` into `chosen`.
+ *
+ * Deterministic (the caller shuffles), never repeats a cell, never seats two
+ * enemies closer than `gap` cells unless nothing else is left, and never picks
+ * a cell whose removal would strand the altar from spawn.
+ */
+function takeCells(
+  pool: Cell[],
+  wanted: number,
+  gap: number,
+  chosen: Cell[],
+  blocked: Set<string>,
+  spawn: Cell,
+): void {
+  const taken = new Set(chosen.map((c) => key(c.col, c.row)));
+  for (const cell of pool) {
+    if (chosen.length >= wanted) return;
+    const k = key(cell.col, cell.row);
+    if (taken.has(k)) continue;
+    if (gap > 0 && chosen.some((c) => chebyshev(c, cell) < gap)) continue;
+    // Tentatively occupy it and confirm the altar is still walkable.
+    blocked.add(k);
+    if (!altarReachableFrom(spawn, blocked)) {
+      blocked.delete(k);
+      continue;
+    }
+    chosen.push(cell);
+    taken.add(k);
+  }
+}
+
+/**
+ * Scatter `wanted` cells across the maze, guarding the altar route first.
+ *
+ * The walk to the altar is the run, so the scatter is drawn from
+ * `routeCells()`: an enemy the path cannot avoid tests the player, one in a
+ * dead end never does. Off-route cells are only used if the route cannot seat
+ * everyone, and everything is returned in stable (row, col) order.
+ */
+function scatter(
+  seed: number,
+  wanted: number,
+  candidates: Cell[],
+  blocked: Set<string>,
+  spawn: Cell,
+): Cell[] {
+  const onRoute = routeCells(spawn, ALTAR);
+  const rand = mulberry32(seed);
+  const onPath = shuffle(
+    candidates.filter((c) => onRoute.has(key(c.col, c.row))),
+    rand,
+  );
+  const offPath = shuffle(
+    candidates.filter((c) => !onRoute.has(key(c.col, c.row))),
+    rand,
+  );
+
+  const chosen: Cell[] = [];
+  takeCells(onPath, wanted, MIN_ENEMY_SPACING, chosen, blocked, spawn);
+  takeCells(onPath, wanted, 0, chosen, blocked, spawn);
+  takeCells(offPath, wanted, 0, chosen, blocked, spawn);
+  return chosen.sort((a, b) => a.row - b.row || a.col - b.col);
+}
+
+/**
+ * Pick `count` distinct, reachable enemy cells, on the route to the altar.
  *
  * - Floor cells only; `#`, `Q`, `H`, `B`, `T`, `S` are excluded.
  * - Nothing within ANCHOR_EXCLUSION cells (Chebyshev) of the altar, spawn or lectern.
  * - Enemies are treated as solid, so any cell whose removal would strand the
- *   altar from spawn is rejected — they can never block a corridor.
+ *   altar from spawn is rejected — they can never block the only way through.
  * - Deterministic for a given seed; returned in stable (row, col) order.
  */
 export function pickEnemyCells(
@@ -88,23 +156,7 @@ export function pickEnemyCells(
   const wanted = Math.max(0, Math.min(count, candidates.length));
   if (wanted === 0) return [];
 
-  const rand = mulberry32(seed);
-  const order = shuffle(candidates, rand);
-  const chosen: Cell[] = [];
-  const blocked = new Set<string>();
-
-  for (const cell of order) {
-    if (chosen.length >= wanted) break;
-    // Tentatively occupy it and confirm the altar is still walkable.
-    blocked.add(key(cell.col, cell.row));
-    if (!altarReachableFrom(spawn, blocked)) {
-      blocked.delete(key(cell.col, cell.row));
-      continue;
-    }
-    chosen.push(cell);
-  }
-
-  return chosen.sort((a, b) => a.row - b.row || a.col - b.col);
+  return scatter(seed, wanted, candidates, new Set<string>(), spawn);
 }
 
 /** Stable, human-readable id for an orc cell. */
@@ -181,10 +233,10 @@ export interface ReinforceOptions {
 /**
  * Cells for a reinforcement wave, seeded like the initial scatter.
  *
- * Same rules as `pickEnemyCells` - eligible floor, clear of the anchors, never
- * blocks the altar route - but on top of that it avoids every occupied cell and
- * everything within REINFORCE_EXCLUSION cells of the player, so new orcs never
- * materialise in view or on top of an existing one.
+ * Same rules as `pickEnemyCells` - eligible floor, clear of the anchors,
+ * guarding the altar route, never blocking it - but on top of that it avoids
+ * every occupied cell and everything within REINFORCE_EXCLUSION cells of the
+ * player, so new orcs never materialise in view or on top of an existing one.
  */
 export function pickReinforcementCells(
   seed: number,
@@ -219,22 +271,7 @@ export function pickReinforcementCells(
   const wanted = Math.max(0, Math.min(count, candidates.length));
   if (wanted === 0) return [];
 
-  const rand = mulberry32(seed);
-  const order = shuffle(candidates, rand);
-  const chosen: Cell[] = [];
-  const blocked = new Set<string>(takenKeys);
-
-  for (const cell of order) {
-    if (chosen.length >= wanted) break;
-    blocked.add(key(cell.col, cell.row));
-    if (!altarReachableFrom(SPAWN, blocked)) {
-      blocked.delete(key(cell.col, cell.row));
-      continue;
-    }
-    chosen.push(cell);
-  }
-
-  return chosen.sort((a, b) => a.row - b.row || a.col - b.col);
+  return scatter(seed, wanted, candidates, new Set<string>(takenKeys), SPAWN);
 }
 
 const ORC_STARTS = ["Gru", "Mog", "Urz", "Kra", "Tho", "Zug", "Gor", "Brug", "Shag", "Khel", "Ur", "Mag"];
