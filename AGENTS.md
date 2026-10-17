@@ -66,7 +66,11 @@ blender --background dungeon/dungeon.blend --python dungeon/build_orc.py     # o
   `UP @ Ry` does not commute and gives the wrong facing.
 - Prop vertices are authored in **world** coordinates, so the objects sit at the origin.
   Parent them with `parent_to()` (sets `matrix_parent_inverse`) or they land at double their
-  intended position.
+  intended position. `parent_to` must run `bpy.context.view_layer.update()` first: right after
+  the parent is created its `matrix_world` is still identity, so the inverse is identity too and
+  the prop exports at **double its cell** (the altar once floated ~60 m past the south wall).
+  `levelMarkers.test.ts` cannot catch it — the empty nodes were always correct; only the meshes
+  doubled.
 - `bmesh.ops.bevel` rebuilds verts: tag `material_index` **before** the bevel and pass
   `material=-1` so chamfer faces inherit.
 - Blender's `to_track_quat("-Z","Y")` rolls the camera frame in a Y-up world, which makes
