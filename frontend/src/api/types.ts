@@ -67,11 +67,11 @@ export interface HealthResponse {
 /**
  * Backend rules, mirrored from core/rules.py for HUD purposes only.
  *
- * MAX_SCORE is the score band (3 levels x 30 points) the HUD bar fills
- * against - not a win condition: a run is won by reaching the altar, and
+ * MAX_SCORE is the score band (1000 points - ten correct answers) the HUD bar
+ * fills against - not a win condition: a run is won by reaching the altar, and
  * points keep accumulating past it while the lives last.
  */
-export const MAX_SCORE = 90;
+export const MAX_SCORE = 1000;
 export const MAX_LEVEL = 3;
 export const MAX_LIVES = 3;
 export const MAX_ANSWER_LENGTH = 500;

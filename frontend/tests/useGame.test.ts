@@ -425,8 +425,8 @@ describe("useGame", () => {
     expect(result.current.state.endReason).toBe("lost");
   });
 
-  it("keeps playing past 90 points: the altar wins, the score does not", async () => {
-    stubFetch({ answer: () => answer({ points: 100, level: 3 }) });
+  it("keeps playing past the bar band: the altar wins, the score does not", async () => {
+    stubFetch({ answer: () => answer({ points: 1100, level: 3 }) });
     const { result } = renderHook(() => useGame());
     await boot(result);
     const target = result.current.state.orcs[0];
@@ -438,7 +438,7 @@ describe("useGame", () => {
     });
 
     expect(result.current.state.phase).toBe("playing");
-    expect(result.current.state.points).toBe(100);
+    expect(result.current.state.points).toBe(1100);
     expect(result.current.state.endReason).toBeNull();
   });
 

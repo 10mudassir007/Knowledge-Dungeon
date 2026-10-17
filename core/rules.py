@@ -11,14 +11,14 @@ accumulating until the lives run out.
 
 from dataclasses import dataclass, field
 
-LEVEL_POINTS = 30
+LEVEL_POINTS = 300
 MAX_LEVEL = 3
 STARTING_LIVES = 3
-POINTS_PER_CORRECT = 10
+POINTS_PER_CORRECT = 100
 
 
 def level_for_points(points: int) -> int:
-    """0-29 => 1, 30-59 => 2, 60+ => 3."""
+    """0-299 => 1, 300-599 => 2, 600+ => 3."""
     return min(MAX_LEVEL, 1 + max(0, points) // LEVEL_POINTS)
 
 
@@ -48,7 +48,7 @@ def new_state() -> GameState:
 def apply_answer(state: GameState, correct: bool) -> GameState:
     """Score one answer and return the resulting state.
 
-    Correct -> +10 points. Wrong -> -1 life. A game over (no lives left) never
+    Correct -> +100 points. Wrong -> -1 life. A game over (no lives left) never
     changes further, so replaying an answer after the fact cannot move the score.
     """
     if state.game_over:

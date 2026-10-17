@@ -245,11 +245,11 @@ def test_second_answer_to_the_same_question_is_rejected(client, session_id):
     client.get(f"/game/{session_id}/question")
     first = _answer(client, session_id, "42")
     assert first.status_code == 200
-    assert first.json()["points"] == 10
+    assert first.json()["points"] == 100
 
     second = _answer(client, session_id, "42")
     assert second.status_code == 409
-    assert client.get(f"/game/{session_id}/state").json()["points"] == 10
+    assert client.get(f"/game/{session_id}/state").json()["points"] == 100
 
 
 def test_answer_is_rejected_after_a_wrong_answer_too(client, session_id):
@@ -259,14 +259,14 @@ def test_answer_is_rejected_after_a_wrong_answer_too(client, session_id):
     assert client.get(f"/game/{session_id}/state").json()["points"] == 0
 
 
-def test_correct_answer_scores_ten_points(client, session_id):
+def test_correct_answer_scores_a_hundred_points(client, session_id):
     client.get(f"/game/{session_id}/question")
     body = _answer(client, session_id, "42").json()
     assert body == {
         "verdict": "Correct",
         "correct": True,
         "lives": 3,
-        "points": 10,
+        "points": 100,
         "level": 1,
         "game_over": False,
     }
@@ -309,7 +309,7 @@ def test_normalized_match_scores_without_calling_the_judge(client, session_id, m
     main.sessions.get(session_id).current.answer = "eiffel tower"
     body = _answer(client, session_id, "The Eiffel Tower.").json()
     assert body["correct"] is True
-    assert body["points"] == 10
+    assert body["points"] == 100
 
 
 def test_malformed_judge_output_counts_as_wrong(client, session_id, monkeypatch):
@@ -341,26 +341,26 @@ def test_blank_answer_is_not_scored_as_correct(client, session_id, judged):
 
 # --- progression --------------------------------------------------------------
 
-def test_level_up_at_30_points(client, session_id):
+def test_level_up_at_300_points(client, session_id):
     for _ in range(3):
         client.get(f"/game/{session_id}/question")
         _answer(client, session_id, "42")
     assert client.get(f"/game/{session_id}/state").json() == {
         "lives": 3,
-        "points": 30,
+        "points": 300,
         "level": 2,
         "game_over": False,
     }
 
 
-def test_level_up_at_60_points(client, session_id):
+def test_level_up_at_600_points(client, session_id):
     for _ in range(6):
         client.get(f"/game/{session_id}/question")
         _answer(client, session_id, "42")
     assert client.get(f"/game/{session_id}/state").json()["level"] == 3
 
 
-def test_scoring_past_90_points_does_not_end_the_run(client, session_id):
+def test_scoring_past_900_points_does_not_end_the_run(client, session_id):
     # There is no server-side win: the client wins by reaching the altar, so
     # the score keeps climbing and the session stays playable.
     body = None
@@ -368,7 +368,7 @@ def test_scoring_past_90_points_does_not_end_the_run(client, session_id):
         client.get(f"/game/{session_id}/question")
         body = _answer(client, session_id, "42").json()
 
-    assert body["points"] == 90
+    assert body["points"] == 900
     assert body["level"] == 3
     assert body["game_over"] is False
 
@@ -381,7 +381,7 @@ def test_full_score_session_still_serves_questions(client, session_id):
     assert client.get(f"/game/{session_id}/question").status_code == 200
     assert client.post(f"/game/{session_id}/hint").status_code == 200
     assert client.get(f"/game/{session_id}/environment").status_code == 200
-    assert _answer(client, session_id, "42").json()["points"] == 110
+    assert _answer(client, session_id, "42").json()["points"] == 1100
 
 
 def test_three_wrong_answers_ends_the_game(client, session_id):
@@ -418,7 +418,7 @@ def test_two_sessions_do_not_share_points(client):
     client.get(f"/game/{first}/question")
     _answer(client, first, "42")
 
-    assert client.get(f"/game/{first}/state").json()["points"] == 10
+    assert client.get(f"/game/{first}/state").json()["points"] == 100
     assert client.get(f"/game/{second}/state").json()["points"] == 0
     assert client.get(f"/game/{second}/state").json()["lives"] == 3
 

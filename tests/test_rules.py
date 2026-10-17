@@ -18,8 +18,8 @@ from core.rules import (
 
 def test_rule_constants():
     assert STARTING_LIVES == 3
-    assert POINTS_PER_CORRECT == 10
-    assert LEVEL_POINTS == 30
+    assert POINTS_PER_CORRECT == 100
+    assert LEVEL_POINTS == 300
     assert MAX_LEVEL == 3
 
 
@@ -31,17 +31,17 @@ def test_new_state():
 
 # --- correct answers ----------------------------------------------------------
 
-def test_correct_answer_adds_ten_points():
+def test_correct_answer_adds_a_hundred_points():
     state = apply_answer(new_state(), True)
-    assert state.points == 10
+    assert state.points == 100
     assert state.lives == 3
     assert state.level == 1
 
 
 def test_correct_answer_keeps_lives():
-    state = apply_answer(GameState(points=10, lives=1), True)
+    state = apply_answer(GameState(points=100, lives=1), True)
     assert state.lives == 1
-    assert state.points == 20
+    assert state.points == 200
 
 
 # --- wrong answers ------------------------------------------------------------
@@ -62,25 +62,25 @@ def test_lives_floor_at_zero():
 
 @pytest.mark.parametrize(
     "points,expected",
-    [(0, 1), (10, 1), (29, 1), (30, 2), (59, 2), (60, 3), (89, 3), (90, 3), (500, 3)],
+    [(0, 1), (100, 1), (299, 1), (300, 2), (599, 2), (600, 3), (899, 3), (900, 3), (5000, 3)],
 )
 def test_level_for_points(points, expected):
     assert level_for_points(points) == expected
 
 
-def test_level_up_at_30_points():
+def test_level_up_at_300_points():
     state = new_state()
     for _ in range(3):
         state = apply_answer(state, True)
-    assert state.points == 30
+    assert state.points == 300
     assert state.level == 2
 
 
-def test_level_up_at_60_points():
+def test_level_up_at_600_points():
     state = new_state()
     for _ in range(6):
         state = apply_answer(state, True)
-    assert state.points == 60
+    assert state.points == 600
     assert state.level == 3
 
 
@@ -100,11 +100,11 @@ def test_negative_points_stay_level_one():
 
 def test_points_keep_accumulating_past_the_level_cap():
     # The run is won in the client by reaching the altar, so scoring never
-    # "completes" a game: 90 points is a full level 3, not a finish line.
+    # "completes" a game: 900 points is a full level 3, not a finish line.
     state = new_state()
     for _ in range(12):
         state = apply_answer(state, True)
-    assert state.points == 120
+    assert state.points == 1200
     assert state.level == MAX_LEVEL
     assert state.game_over is False
 
@@ -129,7 +129,7 @@ def test_game_over_at_zero_lives():
 
 
 def test_game_over_state_ignores_further_answers():
-    dead = GameState(points=10, lives=0)
+    dead = GameState(points=100, lives=0)
     assert dead.game_over is True
     assert apply_answer(dead, True) == dead
 
@@ -150,7 +150,7 @@ def test_apply_answer_does_not_mutate_the_input():
 
 
 def test_derived_fields_cannot_disagree_with_rules():
-    state = GameState(points=70, lives=2)
+    state = GameState(points=700, lives=2)
     assert state.level == 3
     assert state.game_over is False
 

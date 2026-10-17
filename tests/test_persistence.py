@@ -128,8 +128,8 @@ def test_cli_plays_a_full_game_with_the_shared_rules(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "get_hint", lambda *a: "Think.")
     monkeypatch.setattr(cli, "check_answer", lambda q, a, player, alts=None: player.strip() == a)
 
-    # 9 correct answers (90 points, all three levels) then three wrong ones:
-    # scoring past 90 does not finish a run, only the last life does.
+    # 9 correct answers (900 points, all three levels) then three wrong ones:
+    # scoring past 900 does not finish a run, only the last life does.
     answers = iter(["space", "21"] + ["42"] * 9 + ["nope"] * 3)
     monkeypatch.setattr("builtins.input", lambda *a: next(answers))
 

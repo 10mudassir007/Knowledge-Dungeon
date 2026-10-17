@@ -14,9 +14,9 @@ Base URL: `VITE_API_URL` if set, otherwise `/api` (Vite dev proxy strips the pre
 - The backend also models **no win**. A run is won in the client by reaching the
   altar; the server only ever ends a game at **0 lives**.
 - The answer and accepted alternatives are **never** returned by any endpoint.
-- Game rules (`core/rules.py`): 3 lives, +10 points per correct answer,
-  level = `min(3, 1 + points // 30)`, game over at **0** lives. Points keep
-  accumulating (there is no score cap and no 90-point finish), but a game over
+- Game rules (`core/rules.py`): 3 lives, +100 points per correct answer,
+  level = `min(3, 1 + points // 300)`, game over at **0** lives. Points keep
+  accumulating (there is no score cap and no finish line), but a game over
   never changes further.
 
 ## Status codes

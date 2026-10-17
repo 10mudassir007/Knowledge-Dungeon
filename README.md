@@ -18,9 +18,9 @@ An AI-powered quiz dungeon game.
   whenever possible, and an LLM judge is only consulted for genuinely different phrasings.
 - Game rules (the single source of truth is `core/rules.py`):
   - `3` lives
-  - `+10` points per correct answer
-  - level up every `30` points (max level `3`)
-  - win at `90` points
+  - `+100` points per correct answer
+  - level up every `300` points (max level `3`)
+  - no score cap: a run is won by reaching the altar, not by the score
 
 ## Repo Layout
 
