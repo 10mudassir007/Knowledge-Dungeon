@@ -467,6 +467,12 @@ export function useGame({ interest, age, orcCount }: UseGameOptions = {}) {
     [],
   );
 
+  // Held while a question request is in flight. React state lags a tick behind,
+  // so two callers in the same frame (the proximity tick and an E press) would
+  // both pass the `state.engaging` check and fetch two different questions;
+  // the ref is synchronous and wins that race.
+  const engagingRef = useRef(false);
+
   const startRun = useCallback(
     async (seed?: number, override?: Difficulty) => {
       lingerTimers.current.forEach((id) => window.clearTimeout(id));
@@ -514,14 +520,18 @@ export function useGame({ interest, age, orcCount }: UseGameOptions = {}) {
         dispatch({ type: "engage/busy" });
         return;
       }
+      if (engagingRef.current) return;
       if (!state.sessionId) return;
 
+      engagingRef.current = true;
       dispatch({ type: "engage/start", enemyId: id });
       try {
         const res = await api.question(state.sessionId);
         dispatch({ type: "engage/ok", enemyId: id, question: res.question });
       } catch (err) {
         dispatch({ type: "engage/fail", message: err instanceof ApiError ? err.message : NO_QUESTION });
+      } finally {
+        engagingRef.current = false;
       }
     },
     [state.orcs, state.activeEnemyId, state.engaging, state.sessionId],

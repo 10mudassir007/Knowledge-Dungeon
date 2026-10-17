@@ -21,6 +21,7 @@ import {
 import { FpsGuard, type FpsSample } from "./game/FpsGuard";
 import { DEFEAT_LINGER_MS } from "./game/useGame";
 import { Level, type Markers } from "./world/Level";
+import { useAssetPreload } from "./world/preload";
 import { chebyshev, orcTitleForCell, stepToward } from "./world/enemySpawn";
 import { Player } from "./world/Player";
 import { Lights, usePrefersReducedMotion } from "./world/Lights";
@@ -46,6 +47,7 @@ import { MapOverlay, Minimap, type MapPlayer } from "./ui/Minimap";
 import { EnemyDialogue } from "./ui/EnemyDialogue";
 import { EndScreen } from "./ui/EndScreen";
 import { PauseMenu, WELCOME_TEXT } from "./ui/PauseMenu";
+import { BootScreen } from "./ui/BootScreen";
 import { SetupScreen } from "./ui/SetupScreen";
 
 /** Face east, down the row-1 corridor, rather than straight at the north wall. */
@@ -288,10 +290,15 @@ function ProximityTracker({
   const { camera } = useThree();
 
   useFrame(() => {
-    if (frozen || !markers) {
+    if (!markers) {
       out.current = EMPTY_PROXIMITY;
       return;
     }
+    // Frozen (dialogue, pause, death) leaves the last reading in place. An
+    // EMPTY write here was read by the first tick after a dialogue closed as
+    // "no orc in range" - which dropped the encounter cooldown and let the
+    // same orc re-engage a tick later, asking a second question.
+    if (frozen) return;
 
     let bestId: string | null = null;
     let bestDist = Infinity;
@@ -690,7 +697,13 @@ export default function App() {
   const prevPhase = useRef(state.phase);
   useEffect(() => {
     if (prevPhase.current === "dialogue" && state.phase === "playing") {
-      suppressedUntil.current = performance.now() + AUTO_ENGAGE_COOLDOWN_MS;
+      // A verdict means the duel was answered - the orc already had its say,
+      // and asking a fresh question on its own would read as the same fight
+      // starting over. Such an encounter ends when the player walks clear or
+      // presses E. A retreat only gets the short cooldown.
+      suppressedUntil.current = state.verdict
+        ? Number.POSITIVE_INFINITY
+        : performance.now() + AUTO_ENGAGE_COOLDOWN_MS;
     }
     prevPhase.current = state.phase;
   }, [state.phase]);
@@ -853,7 +866,7 @@ export default function App() {
         setShowFps((v) => !v);
         return;
       }
-      if (e.code === "KeyE") void interact();
+      if (e.code === "KeyE" && !e.repeat) void interact();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -884,7 +897,10 @@ export default function App() {
 
   // ---- Setup screen sits OVER the live dungeon ---------------------------
   // The canvas renders behind the form, so the first thing you see is the
-  // dungeon itself rather than a black void.
+  // dungeon itself rather than a black void. The boot card holds the form
+  // back until the models are loaded, then hands over.
+  const { ready: assetsReady, progress: bootProgress } = useAssetPreload();
+
   const showSetup = state.phase === "setup";
 
   if (state.phase === "loading" && !markers && !showSetup) {
@@ -1013,7 +1029,8 @@ export default function App() {
         />
       )}
 
-      {showSetup && <SetupScreen onBegin={handleBegin} />}
+      {showSetup &&
+        (assetsReady ? <SetupScreen onBegin={handleBegin} /> : <BootScreen progress={bootProgress} />)}
 
       {/* Run map: corner widget during play, fullscreen on demand. */}
       {!showSetup && !uiHidden && state.phase !== "over" && (

@@ -83,6 +83,12 @@ canvas {
   color: #ff9d8a;
 }
 
+/* Full-cover card while the dungeon's models load, before the setup menu
+   takes over. Above the veil (25) and the setup form (30). */
+.screen.boot {
+  z-index: 40;
+}
+
 .spinner {
   width: 34px;
   height: 34px;

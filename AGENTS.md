@@ -127,6 +127,12 @@ blender --background dungeon/dungeon.blend --python dungeon/build_orc.py     # o
 
 ## Gotchas that cost real time
 
+- **Encounter suppression rides on the proximity read, and `frozen` must not blank it.**
+  `ProximityTracker` keeps its last reading while `frozen`; it used to write `EMPTY_PROXIMITY`
+  every frozen frame, so the first 10 Hz tick after a dialogue closed read "no orc in range",
+  dropped the cooldown, and the same orc re-engaged a tick later - one duel, two questions.
+  An answered duel (`state.verdict` set) now suppresses until the player walks clear or presses
+  E; a retreat keeps the 4 s beat.
 - **Exported GLBs are not render-ready.** `puddle.glb` had no UVs (alphaMap sampled the
   corner -> alpha 0 -> invisible), arrived as a dished mesh standing off-plane, and dipped
   below the floor. `Puddles.tsx` now derives UVs, orientation and lift from the geometry's

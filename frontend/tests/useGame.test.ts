@@ -294,6 +294,55 @@ describe("useGame", () => {
     expect(result.current.state.notice).toBe("Finish the current question first");
   });
 
+  it("ignores a second engage while a question is already in flight", async () => {
+    let questionCalls = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const json = (value: unknown) =>
+      new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } });
+
+    // Same routes as stubFetch, but the question stays in flight until
+    // `release`, so both engage calls land in the same frame - exactly the
+    // tick + keypress race - before React state can re-render.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/game/start")) {
+          return json({
+            session_id: "sid-1",
+            age: 30,
+            interest: "history",
+            lives: 3,
+            points: 0,
+            level: 1,
+            environment: "Intro.",
+          });
+        }
+        if (url.endsWith("/question")) {
+          questionCalls += 1;
+          await gate;
+          return json({ question: QUESTION_A });
+        }
+        return json({});
+      }),
+    );
+
+    const { result } = renderHook(() => useGame());
+    await boot(result);
+    const target = result.current.state.orcs[0];
+
+    await act(async () => {
+      const first = result.current.engage(target.id);
+      void result.current.engage(target.id);
+      release();
+      await first;
+    });
+
+    expect(questionCalls).toBe(1);
+    expect(result.current.state.activeEnemyId).toBe(target.id);
+    expect(result.current.state.question).toBe(QUESTION_A);
+  });
+
   it("retreat clears the active orc without answering", async () => {
     const stub = stubFetch({});
     const { result } = renderHook(() => useGame());

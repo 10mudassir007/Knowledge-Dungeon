@@ -309,25 +309,29 @@ def get_environment(session_id: str):
 def get_question(session_id: str):
     session = require_session(session_id)
 
-    # An unanswered question is served again rather than replaced.
-    if session.current is not None:
-        return QuestionResponse(question=session.current.question)
+    # One question generation per session at a time. A duplicate request
+    # (double engage, retry) waits here, then finds the stored question below
+    # and is served it instead of generating a second, different one.
+    with session.question_lock:
+        # An unanswered question is served again rather than replaced.
+        if session.current is not None:
+            return QuestionResponse(question=session.current.question)
 
-    require_playable(session)
+        require_playable(session)
 
-    known_keys = history_store.known_question_keys()
-    known_keys.update(normalize_answer(entry.get("question", "")) for entry in session.history)
+        known_keys = history_store.known_question_keys()
+        known_keys.update(normalize_answer(entry.get("question", "")) for entry in session.history)
 
-    draft = None
-    for _ in range(DUPLICATE_GENERATION_ATTEMPTS):
-        candidate = generate_question(session.interest, session.age, session.history)
-        draft = candidate
-        if normalize_answer(candidate.question) not in known_keys:
-            break
+        draft = None
+        for _ in range(DUPLICATE_GENERATION_ATTEMPTS):
+            candidate = generate_question(session.interest, session.age, session.history)
+            draft = candidate
+            if normalize_answer(candidate.question) not in known_keys:
+                break
 
-    # record_question writes nothing to history when the question is a repeat.
-    record_question(session, draft, known_keys)
-    return QuestionResponse(question=draft.question)
+        # record_question writes nothing to history when the question is a repeat.
+        record_question(session, draft, known_keys)
+        return QuestionResponse(question=draft.question)
 
 
 @app.post("/game/{session_id}/hint", response_model=HintResponse)

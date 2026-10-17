@@ -29,6 +29,9 @@ class Session:
     state: GameState
     current: Optional[ActiveQuestion] = None
     history: list = field(default_factory=list)
+    # Serializes "check current -> generate -> store" so two requests racing
+    # on the same session cannot both generate (and replace) a question.
+    question_lock: threading.Lock = field(default_factory=threading.Lock)
     created_at: float = 0.0
     last_seen: float = 0.0
 
