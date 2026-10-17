@@ -31,7 +31,10 @@ logger = logging.getLogger(__name__)
 MAX_ANSWER_LENGTH = 500
 DUPLICATE_GENERATION_ATTEMPTS = 2
 
-DATA_DIR = os.environ.get("DATA_DIR", "data")
+# Serverless hosts (Vercel) mount the deployment read-only; only /tmp is
+# writable, so history lives there rather than next to the code.
+_ON_VERCEL = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"))
+DATA_DIR = os.environ.get("DATA_DIR") or ("/tmp/knowledge-dungeon" if _ON_VERCEL else "data")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.json")
 
 # The built frontend. `python main.py` serves the game from here.

@@ -75,6 +75,21 @@ def test_saving_empty_list_writes_empty_array(tmp_path):
     assert path.read_text(encoding="utf-8").strip() == "[]"
 
 
+def test_append_survives_a_read_only_filesystem(tmp_path, monkeypatch):
+    """Serverless mounts are read-only; history must fall back to memory."""
+    store = HistoryStore(str(tmp_path / "history.json"))
+
+    def deny(*args, **kwargs):
+        raise OSError(30, "Read-only file system")
+
+    monkeypatch.setattr("builtins.open", deny)
+
+    entries = store.append({"question": "Q", "answer": "A"})
+    assert entries == [{"question": "Q", "answer": "A"}]
+    assert store.load() == [{"question": "Q", "answer": "A"}]
+    assert store.known_question_keys() == {normalize_answer("Q")}
+
+
 def _load_cli():
     import importlib.util
     from pathlib import Path
